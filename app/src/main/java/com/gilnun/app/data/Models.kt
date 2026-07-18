@@ -1,6 +1,5 @@
 package com.gilnun.app.data
 
-import com.gilnun.app.catalog.ServiceCatalog
 import com.gilnun.app.catalog.ServiceId
 
 /** Limits shared by persistence and semantic matching. */
@@ -22,28 +21,6 @@ data class PatchV1(
     val accessibleName: String,
     val expectedState: String,
 )
-
-/**
- * Privacy-minimal event received from the owned demo page.
- *
- * Form values, URLs, coordinates, and free-form text are intentionally absent.
- */
-data class InteractionEvent(
-    val schemaVersion: Int,
-    val type: String,
-    val pageId: String,
-    val compatibleRevision: String,
-    val stableKey: String,
-    val role: String,
-    val accessibleName: String,
-    val checkpoint: String,
-    val monotonicMs: Long,
-)
-
-object InteractionEventTypes {
-    const val TARGET_TAP = "TARGET_TAP"
-    const val HELP_REQUEST = "HELP_REQUEST"
-}
 
 enum class ReceiptOutcome {
     VERIFIED,
@@ -86,8 +63,6 @@ data class ServiceProgress(
  * The complete durable demo state. It always has one service-scoped progress entry for each
  * catalog service.
  *
- * The legacy accessors and constructor are temporary compilation adapters for the pre-catalog
- * ViewModel. They project only the basic-pension slot and are not part of the V2 wire format.
  */
 data class DemoState(
     val services: Map<ServiceId, ServiceProgress> = defaultServices(),
@@ -98,53 +73,11 @@ data class DemoState(
         }
     }
 
-    constructor(
-        patch: PatchV1?,
-        helpLevel: Int = ServiceProgress.DEFAULT_HELP_LEVEL,
-        lastReceipt: ActionReceipt? = null,
-    ) : this(
-        services =
-            defaultServices() +
-                (
-                    ServiceId.BASIC_PENSION to
-                        ServiceProgress(
-                            helperPatchesByCheckpoint =
-                                legacyBasicPatches(patch),
-                            helpLevel = helpLevel,
-                            lastReceipt = lastReceipt,
-                        )
-                ),
-    )
-
-    val patch: PatchV1?
-        get() =
-            services
-                .getValue(ServiceId.BASIC_PENSION)
-                .helperPatchesByCheckpoint
-                .values
-                .firstOrNull()
-
-    val helpLevel: Int
-        get() = services.getValue(ServiceId.BASIC_PENSION).helpLevel
-
-    val lastReceipt: ActionReceipt?
-        get() = services.getValue(ServiceId.BASIC_PENSION).lastReceipt
-
     companion object {
         private val REQUIRED_SERVICE_IDS = ServiceId.entries.toSet()
 
         private fun defaultServices(): Map<ServiceId, ServiceProgress> =
             ServiceId.entries.associateWith { ServiceProgress() }
-
-        private fun legacyBasicPatches(patch: PatchV1?): Map<String, PatchV1> {
-            val matchingCheckpoint =
-                ServiceCatalog
-                    .require(ServiceId.BASIC_PENSION)
-                    .steps
-                    .singleOrNull { checkpoint -> checkpoint.patch == patch }
-                    ?: return emptyMap()
-            return mapOf(matchingCheckpoint.id to checkNotNull(patch))
-        }
     }
 }
 

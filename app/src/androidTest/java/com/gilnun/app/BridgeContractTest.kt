@@ -2,6 +2,8 @@ package com.gilnun.app
 
 import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gilnun.app.catalog.ServiceCatalog
+import com.gilnun.app.catalog.ServiceId
 import com.gilnun.app.web.BridgeError
 import com.gilnun.app.web.BridgeResult
 import com.gilnun.app.web.GilnunBridge
@@ -14,7 +16,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BridgeContractTest {
     @Test
-    fun exactOwnedOriginAndMinimalSchemaAreAccepted() {
+    fun exactOwnedOriginMainFrameAndV2CatalogEventAreAccepted() {
         val result =
             GilnunBridge.accept(
                 payload = validPayload(),
@@ -26,7 +28,7 @@ class BridgeContractTest {
     }
 
     @Test
-    fun foreignOriginSubframeAndExtraDataFailClosed() {
+    fun foreignOriginSubframeExtraDataAndCrossServiceFailClosed() {
         assertEquals(
             BridgeResult.Rejected(BridgeError.INVALID_ORIGIN),
             GilnunBridge.accept(
@@ -51,18 +53,30 @@ class BridgeContractTest {
                     .toString(),
             ),
         )
+        assertEquals(
+            BridgeResult.Rejected(BridgeError.INVALID_CONTRACT),
+            GilnunBridge.parse(
+                JSONObject(validPayload())
+                    .put("serviceId", ServiceId.RESIDENT_RECORD.persistedKey)
+                    .toString(),
+            ),
+        )
     }
 
-    private fun validPayload(): String =
-        JSONObject()
+    private fun validPayload(): String {
+        val service = ServiceCatalog.require(ServiceId.BASIC_PENSION)
+        val checkpoint = service.steps.first()
+        val action = requireNotNull(checkpoint.primaryAction)
+        return JSONObject()
             .put("schemaVersion", GilnunBridge.SCHEMA_VERSION)
-            .put("type", "TARGET_TAP")
-            .put("pageId", GilnunBridge.PAGE_ID)
-            .put("compatibleRevision", GilnunBridge.COMPATIBLE_REVISION)
-            .put("stableKey", "review-next")
-            .put("role", "button")
-            .put("accessibleName", "신청 내용 확인")
-            .put("checkpoint", "review-ready")
-            .put("monotonicMs", 42L)
+            .put("type", action.type.name)
+            .put("serviceId", service.id.persistedKey)
+            .put("revision", service.revision)
+            .put("checkpoint", checkpoint.id)
+            .put("stableKey", action.stableKey)
+            .put("role", action.role)
+            .put("accessibleName", action.accessibleName)
+            .put("effect", action.effect.name)
             .toString()
+    }
 }

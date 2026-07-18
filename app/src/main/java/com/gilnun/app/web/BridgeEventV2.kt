@@ -5,17 +5,18 @@ import com.gilnun.app.catalog.EventEffect
 import com.gilnun.app.catalog.ServiceCatalog
 import com.gilnun.app.catalog.ServiceContract
 import com.gilnun.app.catalog.ServiceEventType
+import com.gilnun.app.catalog.ServiceId
 
 sealed interface BridgeEventV2 {
     val schemaVersion: Int
-    val pageId: String
+    val serviceId: ServiceId
     val revision: String
     val checkpoint: String
 
     data class ActionOrHelp(
         override val schemaVersion: Int,
         val type: ServiceEventType,
-        override val pageId: String,
+        override val serviceId: ServiceId,
         override val revision: String,
         override val checkpoint: String,
         val stableKey: String,
@@ -26,7 +27,7 @@ sealed interface BridgeEventV2 {
 
     data class CheckpointChanged(
         override val schemaVersion: Int,
-        override val pageId: String,
+        override val serviceId: ServiceId,
         override val revision: String,
         override val checkpoint: String,
     ) : BridgeEventV2
@@ -65,7 +66,7 @@ object BridgeEventV2Parser {
         setOf(
             "schemaVersion",
             "type",
-            "pageId",
+            "serviceId",
             "revision",
             "checkpoint",
             "stableKey",
@@ -77,7 +78,7 @@ object BridgeEventV2Parser {
         setOf(
             "schemaVersion",
             "type",
-            "pageId",
+            "serviceId",
             "revision",
             "checkpoint",
         )
@@ -147,7 +148,7 @@ object BridgeEventV2Parser {
             BridgeEventV2.ActionOrHelp(
                 schemaVersion = schemaVersion,
                 type = type,
-                pageId = common.service.pageId,
+                serviceId = common.service.id,
                 revision = common.service.revision,
                 checkpoint = common.checkpoint.id,
                 stableKey = contract.stableKey,
@@ -172,7 +173,7 @@ object BridgeEventV2Parser {
         return BridgeEventV2Result.Accepted(
             BridgeEventV2.CheckpointChanged(
                 schemaVersion = schemaVersion,
-                pageId = common.service.pageId,
+                serviceId = common.service.id,
                 revision = common.service.revision,
                 checkpoint = common.checkpoint.id,
             ),
@@ -183,10 +184,12 @@ object BridgeEventV2Parser {
         integer("schemaVersion")?.takeIf { it == SCHEMA_VERSION }
 
     private fun Map<String, FlatJsonValue>.validCommonContract(): CommonContract? {
-        val pageId = semanticString("pageId") ?: return null
+        val serviceId =
+            ServiceId.fromPersistedKey(semanticString("serviceId"))
+                ?: return null
         val revision = semanticString("revision") ?: return null
         val checkpointId = semanticString("checkpoint") ?: return null
-        val service = ServiceCatalog.findByPageId(pageId) ?: return null
+        val service = ServiceCatalog.find(serviceId) ?: return null
         if (revision != service.revision) return null
         val checkpoint = service.checkpoint(checkpointId) ?: return null
         return CommonContract(service, checkpoint)

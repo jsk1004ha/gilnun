@@ -20,4 +20,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        viewModel.stopNarration()
+        super.onStop()
+    }
 }

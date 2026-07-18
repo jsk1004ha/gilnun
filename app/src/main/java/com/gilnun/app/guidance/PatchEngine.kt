@@ -74,16 +74,4 @@ class PatchEngine {
             accessibleName.isValidSemanticField() &&
             expectedState.isValidSemanticField()
 
-    companion object {
-        /** Safe four-hour fallback: guidance for one synthetic, non-submitting action only. */
-        val PRELOADED_REVIEW_PATCH =
-            PatchV1(
-                pageId = "welfare-basic-class",
-                compatibleRevision = "2026-07",
-                stableKey = "review-next",
-                role = "button",
-                accessibleName = "신청 내용 확인",
-                expectedState = "review-ready",
-            )
-    }
 }

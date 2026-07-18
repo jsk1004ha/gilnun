@@ -158,6 +158,47 @@ class DemoStateCodecTest {
     }
 
     @Test
+    fun `version one validates discarded patch and receipt before retaining help`() {
+        val validPatch =
+            """
+            {
+              "pageId":"welfare-basic-class",
+              "compatibleRevision":"2026-07",
+              "stableKey":"review-next",
+              "role":"button",
+              "accessibleName":"신청 내용 확인",
+              "expectedState":"review-ready"
+            }
+            """.trimIndent()
+        val validReceipt =
+            """
+            {
+              "guidanceShown":true,
+              "userActionObserved":true,
+              "postconditionVerified":true,
+              "outcome":"VERIFIED"
+            }
+            """.trimIndent()
+        val invalidStates =
+            listOf(
+                """{"schemaVersion":1,"patch":{},"helpLevel":1,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":${validPatch.dropLast(1)},"extra":true},"helpLevel":1,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":${validPatch.replace("\"stableKey\":\"review-next\"", "\"stableKey\":\"review-next\",\"stableKey\":\"review-next\"")},"helpLevel":1,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":${validPatch.replace("review-next", "")},"helpLevel":1,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":{}}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":${validReceipt.dropLast(1)},"extra":true}}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":${validReceipt.replace("\"outcome\":\"VERIFIED\"", "\"outcome\":\"UNKNOWN\"")}}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":${validReceipt.replace("\"postconditionVerified\":true", "\"postconditionVerified\":false")}}""",
+            )
+
+        invalidStates.forEach { encoded ->
+            val result = DemoStateCodec.decodeWithMetadata(encoded)
+            assertEquals(DemoState(), result.state)
+            assertFalse(result.migratedFromV1)
+        }
+    }
+
+    @Test
     fun `invalid known service resets only that service`() {
         val valid =
             DemoStateCodec.encode(

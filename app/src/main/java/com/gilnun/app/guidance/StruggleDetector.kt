@@ -1,7 +1,6 @@
 package com.gilnun.app.guidance
 
-import com.gilnun.app.data.InteractionEvent
-import com.gilnun.app.data.InteractionEventTypes
+import com.gilnun.app.catalog.ServiceId
 import java.util.ArrayDeque
 
 enum class StruggleCandidateSource {
@@ -9,27 +8,31 @@ enum class StruggleCandidateSource {
     DIRECT_HELP,
 }
 
+data class NonProgressObservation(
+    val serviceId: ServiceId,
+    val revision: String,
+    val stableKey: String,
+    val checkpoint: String,
+    val monotonicMs: Long,
+)
+
 /** A consent-prompt candidate, never a diagnosis or an instruction to perform an action. */
 data class StruggleCandidate(
-    val pageId: String,
-    val compatibleRevision: String,
+    val serviceId: ServiceId,
+    val revision: String,
     val stableKey: String,
     val checkpoint: String,
     val source: StruggleCandidateSource,
     val monotonicMs: Long,
 )
 
-/**
- * Detects only explicit help and three same-target taps without checkpoint progress.
- *
- * Loading and input focus are explicit state. Dwell, scrolling, age, and content are never used.
- */
+/** Detects three same catalog non-progress actions in six seconds. */
 class StruggleDetector(
     private val monotonicClockMs: () -> Long = { System.nanoTime() / 1_000_000L },
 ) {
     private data class EpisodeKey(
-        val pageId: String,
-        val compatibleRevision: String,
+        val serviceId: ServiceId,
+        val revision: String,
         val stableKey: String,
         val checkpoint: String,
     )
@@ -38,70 +41,68 @@ class StruggleDetector(
     private var episodeKey: EpisodeKey? = null
     private var lastTapMs: Long? = null
     private var candidateEmittedForEpisode = false
-    private var loading = false
-    private var inputFocused = false
     private var cooldownUntilMs: Long? = null
 
-    fun observe(event: InteractionEvent): StruggleCandidate? =
-        when (event.type) {
-            InteractionEventTypes.HELP_REQUEST -> directHelp(event)
-            InteractionEventTypes.TARGET_TAP -> observeNonProgressTap(event)
-            else -> null
-        }
-
-    fun observeNonProgressTap(event: InteractionEvent): StruggleCandidate? {
-        if (loading || inputFocused || !event.hasUsableTapIdentity()) {
+    fun observeNonProgress(observation: NonProgressObservation): StruggleCandidate? {
+        if (!observation.hasUsableIdentity()) {
             clearEpisode()
             return null
         }
-        if (isInRejectionCooldown(event.monotonicMs)) {
+        if (isInRejectionCooldown(observation.monotonicMs)) {
             clearEpisode()
             return null
         }
-        if (lastTapMs?.let { event.monotonicMs < it } == true) {
-            clearEpisode()
-        }
+        if (lastTapMs?.let { observation.monotonicMs < it } == true) clearEpisode()
 
-        val incomingKey = EpisodeKey(
-            event.pageId,
-            event.compatibleRevision,
-            event.stableKey,
-            event.checkpoint,
-        )
+        val incomingKey =
+            EpisodeKey(
+                observation.serviceId,
+                observation.revision,
+                observation.stableKey,
+                observation.checkpoint,
+            )
         if (episodeKey != incomingKey) {
             clearEpisode()
             episodeKey = incomingKey
         }
 
-        lastTapMs = event.monotonicMs
-        while (tapTimesMs.isNotEmpty() &&
-            event.monotonicMs - tapTimesMs.first > TAP_WINDOW_MS
+        lastTapMs = observation.monotonicMs
+        while (
+            tapTimesMs.isNotEmpty() &&
+            observation.monotonicMs - tapTimesMs.first > TAP_WINDOW_MS
         ) {
             tapTimesMs.removeFirst()
         }
-        tapTimesMs.addLast(event.monotonicMs)
+        tapTimesMs.addLast(observation.monotonicMs)
+        if (tapTimesMs.size < REQUIRED_TAPS || candidateEmittedForEpisode) return null
 
-        if (tapTimesMs.size < REQUIRED_TAPS || candidateEmittedForEpisode) {
-            return null
-        }
         candidateEmittedForEpisode = true
-        return event.toCandidate(StruggleCandidateSource.REPEATED_NON_PROGRESS_TAP)
+        return StruggleCandidate(
+            serviceId = observation.serviceId,
+            revision = observation.revision,
+            stableKey = observation.stableKey,
+            checkpoint = observation.checkpoint,
+            source = StruggleCandidateSource.REPEATED_NON_PROGRESS_TAP,
+            monotonicMs = observation.monotonicMs,
+        )
     }
 
-    /** Explicit help is immediate and bypasses automatic-prompt cooldown. */
-    fun directHelp(event: InteractionEvent): StruggleCandidate {
+    /** Explicit native help bypasses the automatic-prompt cooldown. */
+    fun directHelp(
+        serviceId: ServiceId,
+        revision: String,
+        checkpoint: String,
+        atMonotonicMs: Long = monotonicClockMs(),
+    ): StruggleCandidate {
         clearEpisode()
-        return event.toCandidate(StruggleCandidateSource.DIRECT_HELP)
-    }
-
-    fun setLoading(isLoading: Boolean) {
-        if (loading != isLoading || isLoading) clearEpisode()
-        loading = isLoading
-    }
-
-    fun setInputFocused(isFocused: Boolean) {
-        if (inputFocused != isFocused || isFocused) clearEpisode()
-        inputFocused = isFocused
+        return StruggleCandidate(
+            serviceId = serviceId,
+            revision = revision,
+            stableKey = DIRECT_HELP_KEY,
+            checkpoint = checkpoint,
+            source = StruggleCandidateSource.DIRECT_HELP,
+            monotonicMs = atMonotonicMs,
+        )
     }
 
     fun onProgress() = clearEpisode()
@@ -120,8 +121,6 @@ class StruggleDetector(
 
     fun reset() {
         clearEpisode()
-        loading = false
-        inputFocused = false
         cooldownUntilMs = null
     }
 
@@ -139,26 +138,16 @@ class StruggleDetector(
         candidateEmittedForEpisode = false
     }
 
-    private fun InteractionEvent.hasUsableTapIdentity(): Boolean =
-        pageId.isNotBlank() &&
-            compatibleRevision.isNotBlank() &&
+    private fun NonProgressObservation.hasUsableIdentity(): Boolean =
+        revision.isNotBlank() &&
             stableKey.isNotBlank() &&
             checkpoint.isNotBlank() &&
             monotonicMs >= 0
-
-    private fun InteractionEvent.toCandidate(source: StruggleCandidateSource) =
-        StruggleCandidate(
-            pageId,
-            compatibleRevision,
-            stableKey,
-            checkpoint,
-            source,
-            monotonicMs,
-        )
 
     companion object {
         const val REQUIRED_TAPS = 3
         const val TAP_WINDOW_MS = 6_000L
         const val REJECTION_COOLDOWN_MS = 30_000L
+        private const val DIRECT_HELP_KEY = "native-help-request"
     }
 }

@@ -42,7 +42,7 @@ class BridgeEventV2Test {
                         BridgeEventV2.CheckpointChanged
 
                 assertEquals(2, event.schemaVersion)
-                assertEquals(service.pageId, event.pageId)
+                assertEquals(service.id, event.serviceId)
                 assertEquals(service.revision, event.revision)
                 assertEquals(checkpoint.id, event.checkpoint)
             }
@@ -75,7 +75,7 @@ class BridgeEventV2Test {
         val wrongValues =
             listOf(
                 valid.replace(""""schemaVersion":2""", """"schemaVersion":1"""),
-                valid.replace("bokjiro-basic-pension", "unknown-page"),
+                valid.replace("basic-pension", "unknown-service"),
                 valid.replace("2026-07", "2026-08"),
                 valid.replace("pension-applicant", "unknown-checkpoint"),
                 valid.replace("pension-applicant-confirm", "pension-self-apply"),
@@ -170,13 +170,13 @@ class BridgeEventV2Test {
         checkpoint: CheckpointContract,
         event: EventContract,
     ): String =
-        """{"schemaVersion":2,"type":"${event.type.name}","pageId":"${service.pageId}","revision":"${service.revision}","checkpoint":"${checkpoint.id}","stableKey":"${event.stableKey}","role":"${event.role}","accessibleName":"${event.accessibleName}","effect":"${event.effect.name}"}"""
+        """{"schemaVersion":2,"type":"${event.type.name}","serviceId":"${service.id.persistedKey}","revision":"${service.revision}","checkpoint":"${checkpoint.id}","stableKey":"${event.stableKey}","role":"${event.role}","accessibleName":"${event.accessibleName}","effect":"${event.effect.name}"}"""
 
     private fun checkpointPayload(
         service: ServiceContract,
         checkpoint: String,
     ): String =
-        """{"schemaVersion":2,"type":"CHECKPOINT_CHANGED","pageId":"${service.pageId}","revision":"${service.revision}","checkpoint":"$checkpoint"}"""
+        """{"schemaVersion":2,"type":"CHECKPOINT_CHANGED","serviceId":"${service.id.persistedKey}","revision":"${service.revision}","checkpoint":"$checkpoint"}"""
 
     private fun assertRejected(payload: String) {
         assertTrue(

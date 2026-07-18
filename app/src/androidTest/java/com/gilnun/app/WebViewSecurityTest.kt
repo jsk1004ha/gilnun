@@ -6,6 +6,8 @@ import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,6 +25,7 @@ class WebViewSecurityTest {
     @Suppress("DEPRECATION")
     @Test
     fun embeddedFixtureKeepsStorageNetworkAndFileAccessClosed() {
+        composeRule.onNodeWithText("기초연금 신청 연습").performClick()
         composeRule.waitForIdle()
         composeRule.runOnIdle {
             val webView =

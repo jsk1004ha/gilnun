@@ -86,8 +86,14 @@ object DemoStateCodec {
         requireExactKeys(V1_TOP_LEVEL_KEYS)
         if (requiredInt("schemaVersion") != LEGACY_SCHEMA_VERSION) throw InvalidStateJson()
 
-        requiredNullableObject("patch")
-        requiredNullableObject("lastReceipt")
+        val discardedPatch = requiredNullableObject("patch")?.toPatch()
+        if (discardedPatch != null && !discardedPatch.hasValidSemanticFields()) {
+            throw InvalidStateJson()
+        }
+        val discardedReceipt = requiredNullableObject("lastReceipt")?.toLegacyReceipt()
+        if (discardedReceipt != null && !discardedReceipt.isTruthful()) {
+            throw InvalidStateJson()
+        }
         val helpLevel = requiredInt("helpLevel")
         if (helpLevel !in MIN_HELP_LEVEL..MAX_HELP_LEVEL) throw InvalidStateJson()
 
@@ -161,6 +167,19 @@ object DemoStateCodec {
             postconditionVerified = requiredBoolean("postconditionVerified"),
             outcome = outcome,
             source = source,
+        )
+    }
+
+    private fun JsonObject.toLegacyReceipt(): ActionReceipt {
+        requireExactKeys(LEGACY_RECEIPT_KEYS)
+        val outcome =
+            runCatching { ReceiptOutcome.valueOf(requiredString("outcome")) }
+                .getOrElse { throw InvalidStateJson() }
+        return ActionReceipt(
+            guidanceShown = requiredBoolean("guidanceShown"),
+            userActionObserved = requiredBoolean("userActionObserved"),
+            postconditionVerified = requiredBoolean("postconditionVerified"),
+            outcome = outcome,
         )
     }
 
@@ -310,6 +329,7 @@ object DemoStateCodec {
             "outcome",
             "source",
         )
+    private val LEGACY_RECEIPT_KEYS = RECEIPT_KEYS - "source"
 }
 
 private sealed interface JsonValue

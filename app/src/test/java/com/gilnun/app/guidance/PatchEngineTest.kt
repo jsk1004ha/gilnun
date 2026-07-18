@@ -2,6 +2,8 @@ package com.gilnun.app.guidance
 
 import com.gilnun.app.data.ModelLimits
 import com.gilnun.app.data.PatchV1
+import com.gilnun.app.catalog.ServiceCatalog
+import com.gilnun.app.catalog.ServiceId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -9,7 +11,7 @@ import org.junit.Test
 
 class PatchEngineTest {
     private val engine = PatchEngine()
-    private val patch = PatchEngine.PRELOADED_REVIEW_PATCH
+    private val patch = requireNotNull(ServiceCatalog.builtInPatch(ServiceId.BASIC_PENSION, "pension-review"))
     private val exactTarget = patch.toTarget()
 
     @Test

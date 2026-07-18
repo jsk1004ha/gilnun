@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="gilnun_window">#F7F5EE</color>
-    <color name="gilnun_status_bar">#18392F</color>
-    <color name="gilnun_navigation_bar">#F7F5EE</color>
+    <color name="gilnun_window">#F7FAFC</color>
+    <color name="gilnun_status_bar">#0B2838</color>
+    <color name="gilnun_navigation_bar">#F7FAFC</color>
 </resources>

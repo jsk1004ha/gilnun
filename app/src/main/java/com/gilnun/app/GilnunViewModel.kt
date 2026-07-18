@@ -3,405 +3,538 @@ package com.gilnun.app
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
+import com.gilnun.app.catalog.EventEffect
+import com.gilnun.app.catalog.ServiceCatalog
+import com.gilnun.app.catalog.ServiceId
 import com.gilnun.app.data.ActionReceipt
 import com.gilnun.app.data.DemoState
 import com.gilnun.app.data.DemoStateStore
-import com.gilnun.app.data.InteractionEvent
-import com.gilnun.app.data.InteractionEventTypes
+import com.gilnun.app.data.GuidanceSource
 import com.gilnun.app.data.PatchV1
+import com.gilnun.app.data.ReceiptOutcome
+import com.gilnun.app.data.ServiceProgress
+import com.gilnun.app.guidance.AndroidKoreanSpeechEngine
+import com.gilnun.app.guidance.GuidanceReceiptCoordinator
+import com.gilnun.app.guidance.GuidanceSpeechCoordinator
 import com.gilnun.app.guidance.HelpPolicy
-import com.gilnun.app.guidance.HelpPolicyEvent
+import com.gilnun.app.guidance.NonProgressObservation
 import com.gilnun.app.guidance.PatchEngine
 import com.gilnun.app.guidance.PatchResolution
-import com.gilnun.app.guidance.ReceiptEvaluator
-import com.gilnun.app.guidance.ReceiptObservation
+import com.gilnun.app.guidance.ReceiptTransition
 import com.gilnun.app.guidance.SemanticTarget
-import com.gilnun.app.guidance.StruggleCandidateSource
+import com.gilnun.app.guidance.SpeechRequestResult
 import com.gilnun.app.guidance.StruggleDetector
+import com.gilnun.app.web.BridgeEventV2
 import com.gilnun.app.web.BridgeStatus
+import com.gilnun.app.web.PracticeLayout
 import com.gilnun.app.web.WebCommand
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-enum class DemoRole {
-    LEARNER,
-    HELPER,
-}
-
-enum class DemoLayout {
-    A,
-    B,
+enum class GilnunScreen {
+    HOME,
+    PRACTICE,
+    HELPER_CONFIRM,
+    HAND_BACK,
 }
 
 data class GilnunUiState(
-    val role: DemoRole = DemoRole.LEARNER,
-    val layout: DemoLayout = DemoLayout.A,
-    val patch: PatchV1? = null,
-    val helpLevel: Int = 3,
-    val receipt: ActionReceipt? = null,
+    val screen: GilnunScreen = GilnunScreen.HOME,
+    val selectedService: ServiceId? = null,
+    val layout: PracticeLayout = PracticeLayout.A,
+    val checkpoint: String? = null,
     val helpPromptVisible: Boolean = false,
     val helpPromptFromFriction: Boolean = false,
     val guidanceShown: Boolean = false,
-    val checkpoint: String = GilnunViewModel.CHECKPOINT_CONSENT_READY,
-    val bridgeAvailable: Boolean = false,
-    val bridgeLabel: String = "연결 준비",
-    val message: String = "학습자 · 레이아웃 A에서 시작합니다.",
     val webCommand: WebCommand? = null,
+    val notice: String? = null,
+    val receiptMessage: String? = null,
+    val speechUnavailable: Boolean = false,
 )
 
 /**
- * A single deterministic reducer for the competition demo.
- *
- * No model, network service, accessibility service, or cross-application API participates in
- * this state machine. The user always performs the page action.
+ * Volatile journey reducer over the fixed catalog. Only helper patches, help level, and truthful
+ * final receipts are durable; every process start returns to HOME.
  */
-class GilnunViewModel(application: Application) : AndroidViewModel(application) {
+class GilnunViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val store = DemoStateStore(application)
+    private var durableState = store.load()
     private val detector = StruggleDetector()
     private val patchEngine = PatchEngine()
     private val helpPolicy = HelpPolicy()
-    private val receiptEvaluator = ReceiptEvaluator()
-    private var webClockAnchorAndroidMs = SystemClock.elapsedRealtime()
-    private var pendingPromptMonotonicMs: Long? = null
+    private val receiptCoordinator = GuidanceReceiptCoordinator()
+    private val speechCoordinator =
+        GuidanceSpeechCoordinator(AndroidKoreanSpeechEngine(application))
 
-    private val restored = store.load()
-    private val _uiState =
-        MutableStateFlow(
-            GilnunUiState(
-                patch = restored.patch,
-                helpLevel = restored.helpLevel.coerceIn(0, 3),
-                receipt = restored.lastReceipt,
-                message =
-                    if (restored.patch == null) {
-                        "학습자 · 레이아웃 A에서 시작합니다."
-                    } else {
-                        "저장된 의미 패치를 불러왔습니다. 레이아웃 B에서 다시 안내할 수 있습니다."
-                    },
-            ),
-        )
+    private val _uiState = MutableStateFlow(GilnunUiState())
     val uiState: StateFlow<GilnunUiState> = _uiState.asStateFlow()
 
-    fun onEvent(event: InteractionEvent) {
-        if (event.pageId != PAGE_ID || event.compatibleRevision != REVISION) {
+    fun selectService(
+        serviceId: ServiceId,
+        layout: PracticeLayout = PracticeLayout.A,
+    ) {
+        val service = ServiceCatalog.require(serviceId)
+        val permittedLayout =
+            if (BuildConfig.DEBUG) layout else PracticeLayout.A
+        resetVolatileGuidance()
+        _uiState.value =
+            GilnunUiState(
+                screen = GilnunScreen.PRACTICE,
+                selectedService = serviceId,
+                layout = permittedLayout,
+                checkpoint = service.steps.first().id,
+                webCommand = WebCommand.Reset(serviceId, permittedLayout),
+            )
+    }
+
+    /** Debug/instrumentation seam; release UI never exposes layout selection. */
+    fun selectServiceForTest(
+        serviceId: ServiceId,
+        layout: PracticeLayout,
+    ) {
+        selectService(serviceId, layout)
+    }
+
+    fun goHome() {
+        resetVolatileGuidance()
+        _uiState.value = GilnunUiState()
+    }
+
+    fun requestHelp() {
+        val context = currentContext() ?: return
+        if (context.service.requireCheckpoint(context.checkpoint).primaryAction == null) {
             _uiState.update {
                 it.copy(
-                    message = "지원하지 않는 화면 계약입니다. 안내를 안전하게 중단했습니다.",
-                    guidanceShown = false,
-                    webCommand = WebCommand.ClearHighlight(),
+                    helpPromptVisible = false,
+                    notice = COMPLETION_HELP_MESSAGE,
                 )
             }
             return
         }
-
-        when {
-            event.type == InteractionEventTypes.HELP_REQUEST ->
-                requestHelp(
-                    direct = true,
-                    eventMonotonicMs = event.monotonicMs,
-                )
-            event.type == InteractionEventTypes.TARGET_TAP &&
-                event.stableKey == SAVE_DRAFT_KEY -> observeFriction(event)
-            event.type == InteractionEventTypes.TARGET_TAP &&
-                event.stableKey == REVIEW_NEXT_KEY -> observeReviewAction(event)
-        }
-    }
-
-    fun requestHelp(
-        direct: Boolean = true,
-        eventMonotonicMs: Long? = null,
-    ) {
-        val state = _uiState.value
-        pendingPromptMonotonicMs = eventMonotonicMs ?: estimatedWebMonotonicMs()
-        val nextHelp =
-            helpPolicy.transition(
-                state.helpLevel,
-                if (direct) {
-                    HelpPolicyEvent.HELP_REQUESTED
-                } else {
-                    HelpPolicyEvent.STRUGGLE_CANDIDATE
-                },
-            )
+        detector.directHelp(
+            serviceId = context.serviceId,
+            revision = context.service.revision,
+            checkpoint = context.checkpoint,
+            atMonotonicMs = nowMs(),
+        )
+        updateHelpLevel(context.serviceId, direct = true)
         _uiState.update {
             it.copy(
-                helpLevel = nextHelp,
                 helpPromptVisible = true,
-                helpPromptFromFriction = !direct,
-                message =
-                    if (direct) {
-                        "직접 도움 요청을 받았습니다. 도움 여부를 먼저 확인합니다."
-                    } else {
-                        "같은 비진행 동작이 세 번 관찰됐습니다. 도움 여부를 먼저 확인합니다."
-                    },
+                helpPromptFromFriction = false,
+                notice = null,
             )
         }
-        persistMinimalState()
     }
 
-    fun acceptHelp() {
-        pendingPromptMonotonicMs = null
+    fun chooseAutomaticGuidance() {
+        val context = currentContext() ?: return
+        val patch = ServiceCatalog.builtInPatch(context.serviceId, context.checkpoint)
+        if (!beginGuidance(context, patch, GuidanceSource.PREVERIFIED)) {
+            stopGuidanceWithNotice()
+            return
+        }
         _uiState.update {
             it.copy(
-                role = DemoRole.HELPER,
+                helpPromptVisible = false,
+                guidanceShown = true,
+                webCommand = WebCommand.Highlight(checkNotNull(patch)),
+                notice = "노란 테두리를 확인한 뒤 직접 선택해 주세요.",
+            )
+        }
+    }
+
+    fun chooseHelperHandoff() {
+        val context = currentContext() ?: return
+        if (ServiceCatalog.builtInPatch(context.serviceId, context.checkpoint) == null) {
+            _uiState.update {
+                it.copy(
+                    helpPromptVisible = false,
+                    notice = COMPLETION_HELP_MESSAGE,
+                )
+            }
+            return
+        }
+        receiptCoordinator.clear()
+        speechCoordinator.stop()
+        _uiState.update {
+            it.copy(
+                screen = GilnunScreen.HELPER_CONFIRM,
                 helpPromptVisible = false,
                 guidanceShown = false,
                 webCommand = WebCommand.ClearHighlight(),
-                message = "도우미 모드입니다. ‘신청 내용 확인’ 한 지점을 선택해 주세요.",
+                notice = null,
+            )
+        }
+    }
+
+    fun confirmHelperTarget() {
+        val context = currentContext(allowHelperScreen = true) ?: return
+        val patch = ServiceCatalog.builtInPatch(context.serviceId, context.checkpoint) ?: return
+        updateProgress(context.serviceId) { progress ->
+            progress.copy(
+                helperPatchesByCheckpoint =
+                    progress.helperPatchesByCheckpoint + (context.checkpoint to patch),
+            )
+        }
+        _uiState.update {
+            it.copy(
+                screen = GilnunScreen.HAND_BACK,
+                notice = null,
+            )
+        }
+    }
+
+    fun returnToLearner() {
+        val context = currentContext(allowHelperScreen = true) ?: return
+        val storedPatch =
+            durableState
+                .services
+                .getValue(context.serviceId)
+                .helperPatchesByCheckpoint[context.checkpoint]
+        if (!beginGuidance(context, storedPatch, GuidanceSource.SAME_DEVICE_HELPER)) {
+            stopGuidanceWithNotice()
+            return
+        }
+        _uiState.update {
+            it.copy(
+                screen = GilnunScreen.PRACTICE,
+                guidanceShown = true,
+                webCommand = WebCommand.Highlight(checkNotNull(storedPatch)),
+                notice = "도우미가 확인한 곳을 표시했어요. 어르신이 직접 선택해 주세요.",
+            )
+        }
+    }
+
+    fun cancelHelperHandoff() {
+        receiptCoordinator.clear()
+        _uiState.update {
+            it.copy(
+                screen = GilnunScreen.PRACTICE,
+                guidanceShown = false,
+                webCommand = WebCommand.ClearHighlight(),
             )
         }
     }
 
     fun declineHelp() {
-        detector.rejectCandidate(pendingPromptMonotonicMs ?: estimatedWebMonotonicMs())
-        pendingPromptMonotonicMs = null
+        detector.rejectCandidate(nowMs())
         _uiState.update {
             it.copy(
                 helpPromptVisible = false,
-                message = "도움 제안을 닫았습니다. 30초 동안 자동으로 다시 묻지 않습니다.",
+                notice = "지금은 도움 안내를 닫았어요.",
             )
         }
     }
 
-    fun setRole(role: DemoRole) {
-        pendingPromptMonotonicMs = null
-        _uiState.update {
-            it.copy(
-                role = role,
-                helpPromptVisible = false,
-                guidanceShown = false,
-                webCommand = WebCommand.ClearHighlight(),
-                message =
-                    if (role == DemoRole.HELPER) {
-                        "도우미가 다음 한 지점의 의미만 기록합니다."
-                    } else {
-                        "학습자가 모든 화면 동작을 직접 수행합니다."
-                    },
-            )
-        }
-    }
+    fun readGuidance() {
+        val context = currentContext() ?: return
+        when (speechCoordinator.read(context.serviceId, context.checkpoint)) {
+            SpeechRequestResult.STARTED,
+            SpeechRequestResult.DUPLICATE_SUPPRESSED,
+            -> _uiState.update { it.copy(speechUnavailable = false) }
 
-    fun setLayout(layout: DemoLayout) {
-        detector.onCheckpointChanged()
-        _uiState.update {
-            it.copy(
-                layout = layout,
-                checkpoint = CHECKPOINT_CONSENT_READY,
-                guidanceShown = false,
-                webCommand = WebCommand.Reset(layoutVariant = layout.name),
-                message = "레이아웃 ${layout.name}로 바꿨습니다. 의미 계약은 그대로입니다.",
-            )
-        }
-    }
-
-    fun replayPatch() {
-        val state = _uiState.value
-        if (!state.bridgeAvailable) {
-            failClosed("이 기기에서는 안전한 로컬 안내 브리지를 사용할 수 없습니다.")
-            return
-        }
-        val patch = state.patch
-        val resolution = patchEngine.resolve(patch, currentTargets())
-        if (resolution != PatchResolution.RESOLVED || patch == null) {
-            failClosed("안내를 안전하게 불러오지 못했습니다. 자동 실행은 하지 않습니다.")
-            return
-        }
-
-        _uiState.update {
-            it.copy(
-                role = DemoRole.LEARNER,
-                layout = DemoLayout.B,
-                checkpoint = CHECKPOINT_CONSENT_READY,
-                guidanceShown = true,
-                webCommand = WebCommand.Highlight(patch),
-                message = "레이아웃 B의 유일한 의미 일치를 강조했습니다. 사용자가 직접 눌러야 합니다.",
-            )
-        }
-    }
-
-    fun demonstrateMismatch() {
-        val patch = _uiState.value.patch ?: PatchEngine.PRELOADED_REVIEW_PATCH
-        val mismatchedTargets =
-            currentTargets().map { target ->
-                if (target.stableKey == REVIEW_NEXT_KEY) {
-                    target.copy(compatibleRevision = "2026-06")
-                } else {
-                    target
+            SpeechRequestResult.UNAVAILABLE ->
+                _uiState.update {
+                    it.copy(
+                        speechUnavailable = true,
+                        notice = TTS_UNAVAILABLE_MESSAGE,
+                    )
                 }
-            }
-        if (patchEngine.resolve(patch, mismatchedTargets) == PatchResolution.PATCH_UNAVAILABLE) {
-            failClosed("리비전 불일치를 감지해 강조와 실행을 모두 중단했습니다.")
         }
     }
 
-    fun resetDemo() {
-        val current = _uiState.value
-        detector.reset()
-        pendingPromptMonotonicMs = null
-        webClockAnchorAndroidMs = SystemClock.elapsedRealtime()
-        store.clear()
-        _uiState.value =
-            GilnunUiState(
-                bridgeAvailable = current.bridgeAvailable,
-                bridgeLabel = current.bridgeLabel,
-                webCommand = WebCommand.Reset(layoutVariant = DemoLayout.A.name),
-                message = "Demo Reset 완료: 저장 상태와 화면 상태를 모두 지웠습니다.",
-            )
+    fun stopNarration() {
+        speechCoordinator.stop()
+    }
+
+    fun onBridgeEvent(event: BridgeEventV2) {
+        val context = currentContext() ?: return
+        if (event.serviceId != context.serviceId ||
+            event.revision != context.service.revision
+        ) {
+            rejectGuidedContext()
+            return
+        }
+
+        when (event) {
+            is BridgeEventV2.ActionOrHelp -> onActionOrHelp(context, event)
+            is BridgeEventV2.CheckpointChanged -> onCheckpointChanged(context, event)
+        }
     }
 
     fun onBridgeStatus(status: BridgeStatus) {
-        _uiState.update { state ->
-            when (status) {
-                BridgeStatus.Available ->
-                    state.copy(
-                        bridgeAvailable = true,
-                        bridgeLabel = "연결됨",
-                    )
+        when (status) {
+            BridgeStatus.Available,
+            BridgeStatus.PageReady,
+            -> Unit
 
-                BridgeStatus.PageReady -> {
-                    webClockAnchorAndroidMs = SystemClock.elapsedRealtime()
-                    state.copy(
-                        bridgeLabel =
-                            if (state.bridgeAvailable) {
-                                "로컬 화면 준비"
-                            } else {
-                                "수동 화면 준비 · 도움 브리지 미지원"
-                            },
-                    )
+            BridgeStatus.Unavailable ->
+                _uiState.update {
+                    it.copy(notice = "이 기기에서는 자동 안내 표시를 사용할 수 없어요.")
                 }
 
-                BridgeStatus.Unavailable ->
-                    state.copy(
-                        bridgeAvailable = false,
-                        bridgeLabel = "지원 안 됨",
-                        guidanceShown = false,
-                    )
-
-                is BridgeStatus.Rejected ->
-                    state.copy(bridgeLabel = "이벤트 거부 · ${status.error.name}")
-
-                is BridgeStatus.PageFailed ->
-                    state.copy(
-                        bridgeAvailable = false,
-                        bridgeLabel = "로컬 화면 오류 · ${status.code}",
-                        guidanceShown = false,
-                    )
-            }
+            is BridgeStatus.Rejected -> rejectGuidedContext()
+            is BridgeStatus.PageFailed ->
+                _uiState.update {
+                    it.copy(notice = "연습 화면을 불러오지 못했어요. 홈에서 다시 시작해 주세요.")
+                }
         }
     }
 
     fun onSecurityEvent(code: String) {
-        failClosed("보안 경계가 요청을 차단했습니다: $code")
+        @Suppress("UNUSED_VARIABLE")
+        val ignored = code
+        rejectGuidedContext()
     }
 
-    private fun observeFriction(event: InteractionEvent) {
-        val candidate = detector.observe(event) ?: return
-        requestHelp(
-            direct = candidate.source == StruggleCandidateSource.DIRECT_HELP,
-            eventMonotonicMs = candidate.monotonicMs,
-        )
-    }
-
-    private fun estimatedWebMonotonicMs(): Long =
-        (SystemClock.elapsedRealtime() - webClockAnchorAndroidMs).coerceAtLeast(0L)
-
-    private fun observeReviewAction(event: InteractionEvent) {
-        val state = _uiState.value
-        if (state.role == DemoRole.HELPER) {
-            val patch = PatchEngine.PRELOADED_REVIEW_PATCH
-            _uiState.update {
-                it.copy(
-                    patch = patch,
-                    message = "PatchV1을 저장했습니다. 좌표·선택자·입력값은 포함하지 않습니다.",
-                    checkpoint = event.checkpoint,
+    private fun onActionOrHelp(
+        context: CurrentContext,
+        event: BridgeEventV2.ActionOrHelp,
+    ) {
+        if (event.checkpoint != context.checkpoint) {
+            rejectGuidedContext()
+            return
+        }
+        if (event.effect == EventEffect.NON_PROGRESS) {
+            val candidate =
+                detector.observeNonProgress(
+                    NonProgressObservation(
+                        serviceId = event.serviceId,
+                        revision = event.revision,
+                        stableKey = event.stableKey,
+                        checkpoint = event.checkpoint,
+                        monotonicMs = nowMs(),
+                    ),
                 )
+            if (candidate != null) {
+                updateHelpLevel(context.serviceId, direct = false)
+                _uiState.update {
+                    it.copy(
+                        helpPromptVisible = true,
+                        helpPromptFromFriction = true,
+                        notice = null,
+                    )
+                }
             }
-            persistMinimalState()
             return
         }
 
         detector.onProgress()
+        if (!_uiState.value.guidanceShown) return
+        when (val transition = receiptCoordinator.onAction(event)) {
+            is ReceiptTransition.Pending -> Unit
+            is ReceiptTransition.Rejected -> finishFailedGuidance(context.serviceId, transition.receipt)
+            ReceiptTransition.NoGuidance -> rejectGuidedContext()
+            is ReceiptTransition.Verified -> rejectGuidedContext()
+        }
+    }
+
+    private fun onCheckpointChanged(
+        context: CurrentContext,
+        event: BridgeEventV2.CheckpointChanged,
+    ) {
+        if (event.checkpoint == context.checkpoint) return
+        val expected =
+            context.service
+                .requireCheckpoint(context.checkpoint)
+                .primaryAction
+                ?.expectedCheckpoint
+        if (event.checkpoint != expected) {
+            rejectGuidedContext()
+            return
+        }
+
         val receipt =
-            receiptEvaluator.evaluate(
-                patch = state.patch,
-                observation =
-                    ReceiptObservation(
-                        guidanceShown = state.guidanceShown,
-                        userActionObserved = true,
-                        pageId = event.pageId,
-                        compatibleRevision = event.compatibleRevision,
-                        checkpoint = event.checkpoint,
-                    ),
-            )
-        val nextHelp = helpPolicy.onReceipt(state.helpLevel, receipt)
+            if (_uiState.value.guidanceShown) {
+                when (val transition = receiptCoordinator.onCheckpointChanged(event)) {
+                    is ReceiptTransition.Verified -> transition.receipt
+                    is ReceiptTransition.Rejected -> transition.receipt
+                    is ReceiptTransition.Pending,
+                    ReceiptTransition.NoGuidance,
+                    -> failedReceipt()
+                }
+            } else {
+                null
+            }
+        detector.onCheckpointChanged()
+        speechCoordinator.stop()
+
+        if (receipt != null) {
+            updateProgress(context.serviceId) { progress ->
+                progress.copy(
+                    helpLevel = helpPolicy.onReceipt(progress.helpLevel, receipt),
+                    lastReceipt = receipt,
+                )
+            }
+        }
         _uiState.update {
             it.copy(
-                receipt = receipt,
-                helpLevel = nextHelp,
                 checkpoint = event.checkpoint,
                 guidanceShown = false,
                 webCommand = WebCommand.ClearHighlight(),
-                message =
-                    when (receipt.outcome.name) {
-                        "VERIFIED" -> "사용자 행동과 review-ready 사후조건을 확인했습니다."
-                        "UNVERIFIED" -> "클릭은 보였지만 사후조건이 없어 완료로 기록하지 않았습니다."
-                        else -> "계약이 맞지 않아 실패 안전으로 종료했습니다."
+                receiptMessage =
+                    if (receipt?.outcome == ReceiptOutcome.VERIFIED) {
+                        HUMAN_RECEIPT_MESSAGE
+                    } else {
+                        null
+                    },
+                notice =
+                    if (receipt?.outcome == ReceiptOutcome.FAILED) {
+                        "다음 화면은 열렸지만 안내 확인 기록은 남기지 않았어요."
+                    } else {
+                        null
+                    },
+                speechUnavailable = false,
+            )
+        }
+    }
+
+    private fun beginGuidance(
+        context: CurrentContext,
+        patch: PatchV1?,
+        source: GuidanceSource,
+    ): Boolean {
+        val target =
+            patch?.let {
+                SemanticTarget(
+                    pageId = it.pageId,
+                    compatibleRevision = it.compatibleRevision,
+                    stableKey = it.stableKey,
+                    role = it.role,
+                    accessibleName = it.accessibleName,
+                    expectedState = it.expectedState,
+                )
+            }
+        return patch != null &&
+            target != null &&
+            patchEngine.resolve(patch, listOf(target)) == PatchResolution.RESOLVED &&
+            receiptCoordinator.begin(
+                context.serviceId,
+                context.checkpoint,
+                patch,
+                source,
+            )
+    }
+
+    private fun rejectGuidedContext() {
+        val context = currentContext(allowHelperScreen = true)
+        val transition = receiptCoordinator.onTimeout()
+        if (context != null && transition is ReceiptTransition.Rejected) {
+            finishFailedGuidance(context.serviceId, transition.receipt)
+        } else {
+            stopGuidanceWithNotice()
+        }
+    }
+
+    private fun finishFailedGuidance(
+        serviceId: ServiceId,
+        receipt: ActionReceipt,
+    ) {
+        updateProgress(serviceId) { progress ->
+            progress.copy(
+                helpLevel = helpPolicy.onReceipt(progress.helpLevel, receipt),
+                lastReceipt = receipt,
+            )
+        }
+        receiptCoordinator.clear()
+        _uiState.update {
+            it.copy(
+                guidanceShown = false,
+                webCommand = WebCommand.ClearHighlight(),
+                notice = "안내를 안전하게 중단했어요. 현재 화면에서 다시 도움을 요청해 주세요.",
+                receiptMessage = null,
+            )
+        }
+    }
+
+    private fun stopGuidanceWithNotice() {
+        receiptCoordinator.clear()
+        _uiState.update {
+            it.copy(
+                guidanceShown = false,
+                helpPromptVisible = false,
+                webCommand = WebCommand.ClearHighlight(),
+                notice = "안내 대상을 확인하지 못해 표시를 중단했어요.",
+            )
+        }
+    }
+
+    private fun resetVolatileGuidance() {
+        detector.reset()
+        receiptCoordinator.clear()
+        speechCoordinator.stop()
+    }
+
+    private fun updateHelpLevel(
+        serviceId: ServiceId,
+        direct: Boolean,
+    ) {
+        updateProgress(serviceId) { progress ->
+            progress.copy(
+                helpLevel =
+                    if (direct) {
+                        helpPolicy.onHelpRequested(progress.helpLevel)
+                    } else {
+                        helpPolicy.onStruggleCandidate(progress.helpLevel)
                     },
             )
         }
-        persistMinimalState()
     }
 
-    private fun failClosed(message: String) {
+    private fun updateProgress(
+        serviceId: ServiceId,
+        transform: (ServiceProgress) -> ServiceProgress,
+    ) {
+        val services = durableState.services.toMutableMap()
+        services[serviceId] = transform(services.getValue(serviceId))
+        durableState = DemoState(services)
+        store.save(durableState)
+    }
+
+    private fun currentContext(allowHelperScreen: Boolean = false): CurrentContext? {
         val state = _uiState.value
-        val failedReceipt =
-            ActionReceipt(
-                guidanceShown = state.guidanceShown,
-                userActionObserved = false,
-                postconditionVerified = false,
-                outcome = com.gilnun.app.data.ReceiptOutcome.FAILED,
-            )
-        _uiState.update {
-            it.copy(
-                receipt = failedReceipt,
-                helpLevel = helpPolicy.onReceipt(it.helpLevel, failedReceipt),
-                guidanceShown = false,
-                webCommand = WebCommand.ClearHighlight(),
-                message = message,
-            )
-        }
-        persistMinimalState()
+        val allowedScreen =
+            state.screen == GilnunScreen.PRACTICE ||
+                (allowHelperScreen &&
+                    state.screen in setOf(GilnunScreen.HELPER_CONFIRM, GilnunScreen.HAND_BACK))
+        if (!allowedScreen) return null
+        val serviceId = state.selectedService ?: return null
+        val checkpoint = state.checkpoint ?: return null
+        val service = ServiceCatalog.find(serviceId) ?: return null
+        if (service.checkpoint(checkpoint) == null) return null
+        return CurrentContext(serviceId, service, checkpoint)
     }
 
-    private fun persistMinimalState() {
-        val state = _uiState.value
-        store.save(
-            DemoState(
-                patch = state.patch,
-                helpLevel = state.helpLevel,
-                lastReceipt = state.receipt,
-            ),
+    private fun failedReceipt(): ActionReceipt =
+        ActionReceipt(
+            guidanceShown = true,
+            userActionObserved = false,
+            postconditionVerified = false,
+            outcome = ReceiptOutcome.FAILED,
+            source = GuidanceSource.PREVERIFIED,
         )
+
+    private fun nowMs(): Long = SystemClock.elapsedRealtime()
+
+    override fun onCleared() {
+        speechCoordinator.shutdown()
+        super.onCleared()
     }
 
-    private fun currentTargets(): List<SemanticTarget> =
-        listOf(
-            SemanticTarget(
-                pageId = PAGE_ID,
-                compatibleRevision = REVISION,
-                stableKey = REVIEW_NEXT_KEY,
-                role = "button",
-                accessibleName = "신청 내용 확인",
-                expectedState = CHECKPOINT_REVIEW_READY,
-            ),
-        )
+    private data class CurrentContext(
+        val serviceId: ServiceId,
+        val service: com.gilnun.app.catalog.ServiceContract,
+        val checkpoint: String,
+    )
 
     companion object {
-        const val PAGE_ID = "welfare-basic-class"
-        const val REVISION = "2026-07"
-        const val SAVE_DRAFT_KEY = "save-draft"
-        const val REVIEW_NEXT_KEY = "review-next"
-        const val CHECKPOINT_CONSENT_READY = "consent-ready"
-        const val CHECKPOINT_REVIEW_READY = "review-ready"
+        const val HUMAN_RECEIPT_MESSAGE = "안내 표시 → 직접 선택 → 다음 화면 확인"
+        const val TTS_UNAVAILABLE_MESSAGE = "이 기기에서는 안내 읽기를 사용할 수 없어요"
+        const val COMPLETION_HELP_MESSAGE = "연습을 모두 마쳤어요. 홈으로 돌아가 다른 연습을 시작할 수 있어요."
     }
 }

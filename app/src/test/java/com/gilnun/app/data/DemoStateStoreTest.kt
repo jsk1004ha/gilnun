@@ -22,25 +22,38 @@ class DemoStateStoreTest {
     }
 
     @Test
-    fun `failed migration commit returns migrated state and retries next load`() {
+    fun `failed migration commit retries immediately despite in memory version two value`() {
         val legacy = legacyState(helpLevel = 2)
         val fake =
             FakePreferences(
                 initialValues = mapOf(STATE_KEY to legacy),
-                commitResult = false,
+                commitResults = ArrayDeque(listOf(false, true)),
             )
         val store = DemoStateStore(fake.preferences)
 
-        repeat(2) {
-            val state = store.load()
-            assertEquals(
-                setOf(2),
-                ServiceId.entries.map { state.services.getValue(it).helpLevel }.toSet(),
-            )
-        }
+        val state = store.load()
 
         assertEquals(2, fake.commitCalls)
-        assertEquals(legacy, fake.values.getValue(STATE_KEY))
+        assertEquals(
+            setOf(2),
+            ServiceId.entries.map { state.services.getValue(it).helpLevel }.toSet(),
+        )
+        assertTrue(fake.values.getValue(STATE_KEY).contains("\"schemaVersion\":2"))
+    }
+
+    @Test
+    fun `pending migration rewrite retries on a later load after bounded failures`() {
+        val fake =
+            FakePreferences(
+                initialValues = mapOf(STATE_KEY to legacyState(helpLevel = 1)),
+                commitResults = ArrayDeque(listOf(false, false, true)),
+            )
+        val store = DemoStateStore(fake.preferences)
+
+        store.load()
+        store.load()
+
+        assertEquals(3, fake.commitCalls)
     }
 
     @Test
@@ -66,7 +79,7 @@ class DemoStateStoreTest {
 
     private class FakePreferences(
         initialValues: Map<String, String> = emptyMap(),
-        private val commitResult: Boolean = true,
+        private val commitResults: ArrayDeque<Boolean> = ArrayDeque(),
     ) {
         val values = initialValues.toMutableMap()
         var commitCalls = 0
@@ -127,8 +140,8 @@ class DemoStateStoreTest {
                         }
                         "commit" -> {
                             commitCalls += 1
-                            if (commitResult) applyPending()
-                            commitResult
+                            applyPending()
+                            commitResults.removeFirstOrNull() ?: true
                         }
                         "apply" -> {
                             applyCalls += 1
