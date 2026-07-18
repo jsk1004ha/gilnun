@@ -1,5 +1,8 @@
 package com.gilnun.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import android.animation.ValueAnimator
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +31,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -34,10 +39,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,10 +65,25 @@ import com.gilnun.app.R
 import com.gilnun.app.catalog.ServiceCatalog
 import com.gilnun.app.catalog.ServiceId
 import com.gilnun.app.web.DemoWebView
+import kotlinx.coroutines.delay
 
 @Composable
 fun GilnunApp(viewModel: GilnunViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showStartup by rememberSaveable { mutableStateOf(true) }
+    val animationsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
+
+    LaunchedEffect(Unit) {
+        if (animationsEnabled) {
+            delay(STARTUP_DURATION_MS)
+        }
+        showStartup = false
+    }
+
+    if (showStartup) {
+        StartupScreen()
+        return
+    }
 
     if (state.helpPromptVisible) {
         HelpChoiceDialog(
@@ -80,6 +107,7 @@ fun GilnunApp(viewModel: GilnunViewModel) {
                 onHome = viewModel::goHome,
                 onRead = viewModel::readGuidance,
                 onHelp = viewModel::requestHelp,
+                onChangeLayout = viewModel::togglePracticeLayout,
                 onEvent = viewModel::onBridgeEvent,
                 onBridgeStatus = viewModel::onBridgeStatus,
                 onSecurityEvent = viewModel::onSecurityEvent,
@@ -108,6 +136,66 @@ fun GilnunApp(viewModel: GilnunViewModel) {
 }
 
 @Composable
+private fun StartupScreen() {
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val logoAlpha by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0f,
+            animationSpec = tween(durationMillis = 360),
+            label = "startup logo alpha",
+        )
+    val logoScale by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0.82f,
+            animationSpec = tween(durationMillis = 440),
+            label = "startup logo scale",
+        )
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = GilnunNavy,
+        contentColor = Color.White,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.logo_gilnun),
+                contentDescription = "길눈",
+                modifier =
+                    Modifier
+                        .size(168.dp)
+                        .scale(logoScale)
+                        .alpha(logoAlpha),
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = "한 번 찾은 길은,\n모두의 길이 됩니다.",
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.alpha(logoAlpha),
+            )
+            Spacer(Modifier.height(28.dp))
+            LinearProgressIndicator(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape),
+                color = GilnunYellow,
+                trackColor = Color.White.copy(alpha = 0.25f),
+            )
+        }
+    }
+}
+
+@Composable
 private fun HomeScreen(onSelectService: (ServiceId) -> Unit) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -126,6 +214,9 @@ private fun HomeScreen(onSelectService: (ServiceId) -> Unit) {
                 BrandHeader()
             }
             item {
+                ValueProposition()
+            }
+            item {
                 PracticeBanner()
             }
             ServiceId.entries.forEach { serviceId ->
@@ -138,6 +229,72 @@ private fun HomeScreen(onSelectService: (ServiceId) -> Unit) {
             }
             item { Spacer(Modifier.height(8.dp)) }
         }
+    }
+}
+
+@Composable
+private fun ValueProposition() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = GilnunNavy,
+        contentColor = Color.White,
+        shape = RoundedCornerShape(22.dp),
+        shadowElevation = 5.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = "좌표는 빗나가도,\n의미는 다시 찾습니다.",
+                style = MaterialTheme.typography.headlineLarge,
+                color = GilnunYellow,
+            )
+            Text(
+                text = "길눈은 화면에서 막히는 순간을 알아채고, 동의를 받은 뒤 검증된 한 단계 도움만 다시 보여드려요.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            ProofPoint("1", "복잡한 화면에서 막힌 한 단계만 찾아요")
+            ProofPoint("2", "버튼 위치가 바뀌어도 이름·역할·다음 화면을 확인해요")
+            ProofPoint("3", "안내 표시 → 직접 선택 → 다음 화면 확인")
+            Text(
+                text = "대상이 없거나 겹치면 추측하지 않고 멈춰요.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = GilnunYellow,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProofPoint(
+    number: String,
+    text: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(38.dp),
+            color = GilnunTeal,
+            contentColor = Color.White,
+            shape = CircleShape,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = number,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                )
+            }
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -160,7 +317,7 @@ private fun BrandHeader() {
                 color = GilnunNavy,
             )
             Text(
-                text = "공공서비스를 천천히 연습해요",
+                text = "한 번 찾은 길은, 모두의 길이 됩니다.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -211,6 +368,11 @@ private fun ServiceCard(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
+                    text = serviceId.portalLabel(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = GilnunTeal,
+                )
+                Text(
                     text = serviceId.homeTitle(),
                     style = MaterialTheme.typography.headlineMedium,
                 )
@@ -230,12 +392,14 @@ private fun PracticeScreen(
     onHome: () -> Unit,
     onRead: () -> Unit,
     onHelp: () -> Unit,
+    onChangeLayout: () -> Unit,
     onEvent: (com.gilnun.app.web.BridgeEventV2) -> Unit,
     onBridgeStatus: (com.gilnun.app.web.BridgeStatus) -> Unit,
     onSecurityEvent: (String) -> Unit,
 ) {
     val serviceId = state.selectedService ?: return
     val checkpoint = state.checkpoint ?: return
+    var pageReady by remember(serviceId, state.layout) { mutableStateOf(false) }
     val service = ServiceCatalog.require(serviceId)
     val stepIndex =
         service.steps
@@ -264,11 +428,11 @@ private fun PracticeScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PracticeTopBar(
-                serviceId = serviceId,
                 stepIndex = stepIndex,
+                layout = state.layout,
                 onHome = onHome,
+                onChangeLayout = onChangeLayout,
             )
-            PracticeBanner()
             if (state.receiptMessage != null) {
                 HumanReceipt(state.receiptMessage)
             }
@@ -278,18 +442,78 @@ private fun PracticeScreen(
                     isError = state.speechUnavailable,
                 )
             }
-            DemoWebView(
-                serviceId = serviceId,
-                layout = state.layout,
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .clip(RoundedCornerShape(18.dp)),
-                command = state.webCommand,
-                onEvent = onEvent,
-                onBridgeStatus = onBridgeStatus,
-                onSecurityEvent = onSecurityEvent,
+            ) {
+                DemoWebView(
+                    serviceId = serviceId,
+                    layout = state.layout,
+                    modifier = Modifier.fillMaxSize(),
+                    command = state.webCommand,
+                    onEvent = onEvent,
+                    onBridgeStatus = { status ->
+                        if (status == com.gilnun.app.web.BridgeStatus.PageReady ||
+                            status is com.gilnun.app.web.BridgeStatus.PageFailed
+                        ) {
+                            pageReady = true
+                        }
+                        onBridgeStatus(status)
+                    },
+                    onSecurityEvent = onSecurityEvent,
+                )
+                if (!pageReady) {
+                    PracticeLoadingOverlay(serviceId)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PracticeLoadingOverlay(serviceId: ServiceId) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = GilnunNavy,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.logo_gilnun),
+                contentDescription = null,
+                modifier = Modifier.size(112.dp),
+            )
+            Text(
+                text = "${serviceId.shortTitle()} 연습 화면 준비 중",
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 18.dp),
+            )
+            Text(
+                text = "연습용 화면 · 실제 기관과 연결되지 않아요",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            LinearProgressIndicator(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp)
+                        .height(6.dp)
+                        .clip(CircleShape),
+                color = GilnunTeal,
+                trackColor = MaterialTheme.colorScheme.primaryContainer,
             )
         }
     }
@@ -297,9 +521,10 @@ private fun PracticeScreen(
 
 @Composable
 private fun PracticeTopBar(
-    serviceId: ServiceId,
     stepIndex: Int,
+    layout: com.gilnun.app.web.PracticeLayout,
     onHome: () -> Unit,
+    onChangeLayout: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -312,16 +537,33 @@ private fun PracticeTopBar(
             Text("← 홈으로")
         }
         Text(
-            text = serviceId.shortTitle(),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
             text = "${stepIndex.coerceIn(1, 3)} / 3 단계",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.fillMaxWidth(),
         )
+        if (stepIndex == 1) {
+            OutlinedButton(
+                onClick = onChangeLayout,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .defaultMinSize(minHeight = 56.dp),
+            ) {
+                Text(
+                    if (layout == com.gilnun.app.web.PracticeLayout.A) {
+                        "화면 배치 바꿔보기"
+                    } else {
+                        "원래 배치로 돌아가기"
+                    },
+                )
+            }
+            Text(
+                text = "위치가 달라져도 도움 버튼을 누르면 같은 의미의 선택을 다시 찾아요.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
     }
 }
 
@@ -665,3 +907,12 @@ private fun ServiceId.homeDescription(): String =
         ServiceId.RESIDENT_RECORD -> "법적 효력 없는 모의 등본을 확인해요"
         ServiceId.HEALTH_SCREENING -> "2026년 모의 조회 과정을 익혀요"
     }
+
+private fun ServiceId.portalLabel(): String =
+    when (this) {
+        ServiceId.BASIC_PENSION -> "복지로형 복잡 화면"
+        ServiceId.RESIDENT_RECORD -> "정부24형 복잡 화면"
+        ServiceId.HEALTH_SCREENING -> "건강보험형 복잡 화면"
+    }
+
+private const val STARTUP_DURATION_MS = 720L

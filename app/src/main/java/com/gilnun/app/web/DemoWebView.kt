@@ -24,7 +24,6 @@ import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import com.gilnun.app.BuildConfig
 import com.gilnun.app.catalog.ServiceId
 import com.gilnun.app.data.PatchV1
 import java.io.ByteArrayInputStream
@@ -90,14 +89,14 @@ fun DemoWebView(
             SecureGilnunWebView(
                 context = context,
                 initialService = serviceId,
-                initialLayout = layout.allowedForBuild(),
+                initialLayout = layout,
                 onEvent = { currentOnEvent(it) },
                 onBridgeStatus = { currentOnBridgeStatus(it) },
                 onSecurityEvent = { currentOnSecurityEvent(it) },
             ).also { it.updateTextZoom(textZoom) }
         },
         update = { webView ->
-            webView.requestPage(serviceId, layout.allowedForBuild())
+            webView.requestPage(serviceId, layout)
             webView.updateTextZoom(textZoom)
             command?.let(webView::dispatch)
         },
@@ -170,7 +169,7 @@ private class SecureGilnunWebView(
                 desiredRequest =
                     PracticePageRequest(
                         command.serviceId,
-                        command.layout.allowedForBuild(),
+                        command.layout,
                     )
                 activeHighlightPayload = null
                 pendingHighlightPayload = null
@@ -401,9 +400,6 @@ private class SecureGilnunWebView(
         private val APP_ORIGIN_URI: Uri = Uri.parse(GilnunBridge.APP_ORIGIN)
     }
 }
-
-private fun PracticeLayout.allowedForBuild(): PracticeLayout =
-    if (BuildConfig.DEBUG) this else PracticeLayout.A
 
 private const val MIN_TEXT_ZOOM = 100
 private const val MAX_TEXT_ZOOM = 200

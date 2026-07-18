@@ -40,6 +40,29 @@ class PracticeAssetContractTest {
     }
 
     @Test
+    fun `practice shell explains semantic recovery and exposes institution shaped landmarks`() {
+        assertContains(html, "좌표는 빗나가도, 의미는 다시 찾습니다.")
+        assertContains(html, "버튼의 위치가 달라져도 이름·역할·다음 상태를 확인해 다시 찾습니다.")
+        listOf(
+            "portal-header",
+            "portal-nav",
+            "portal-breadcrumb",
+            "portal-tabs",
+            "notice-board",
+            "side-menu",
+        ).forEach { className ->
+            assertContains(html, """class="$className""")
+        }
+        assertContains(javascript, "institution: \"복지로형\"")
+        assertContains(javascript, "institution: \"정부24형\"")
+        assertContains(javascript, "institution: \"건강보험형\"")
+        assertContains(javascript, "read-only-choice-row")
+        assertContains(javascript, "inert-decoy")
+        assertContains(javascript, "grouped-summary")
+        assertFalse("Decorative shell must not create bridge targets", "data-stable-key" in html)
+    }
+
+    @Test
     fun `release copy does not expose layout page or revision metadata`() {
         assertFalse("Layout badge must not be visible", "layout-label" in html)
         assertFalse("Page identifier must not be visible", "page-label" in html)
@@ -268,6 +291,32 @@ class PracticeAssetContractTest {
                 .containsMatchIn(css),
         )
         assertFalse("Visual order must not diverge from focus order", "column-reverse" in css)
+    }
+
+    @Test
+    fun `layout B relocates groups while semantic recovery keeps one exact target`() {
+        assertContains(javascript, "function renderInstitutionStep")
+        assertContains(javascript, "const primaryButton = createActionButton(step")
+        assertContains(javascript, """document.body.classList.toggle("layout-b", layout === "B")""")
+        assertContains(javascript, "위치가 달라져도 의미를 다시 찾았어요.")
+        assertContains(javascript, "이름·역할·다음 상태")
+        assertContains(css, ".layout-b .service-workspace")
+        assertContains(css, ".layout-b .step-groups")
+        assertTrue(
+            "Layout B must visibly change the shared workspace without changing DOM order",
+            Regex(
+                """\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)""",
+                RegexOption.DOT_MATCHES_ALL,
+            ).containsMatchIn(css),
+        )
+        assertFalse("Layout B must never reverse DOM or focus order", "reverse" in css)
+        assertEquals(
+            "Only action factories may assign semantic target attributes",
+            1,
+            javascript.windowed("button.dataset.stableKey".length).count {
+                it == "button.dataset.stableKey"
+            },
+        )
     }
 
     @Test

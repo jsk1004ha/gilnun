@@ -78,25 +78,47 @@ class GilnunViewModel(
         layout: PracticeLayout = PracticeLayout.A,
     ) {
         val service = ServiceCatalog.require(serviceId)
-        val permittedLayout =
-            if (BuildConfig.DEBUG) layout else PracticeLayout.A
         resetVolatileGuidance()
         _uiState.value =
             GilnunUiState(
                 screen = GilnunScreen.PRACTICE,
                 selectedService = serviceId,
-                layout = permittedLayout,
+                layout = layout,
                 checkpoint = service.steps.first().id,
-                webCommand = WebCommand.Reset(serviceId, permittedLayout),
+                webCommand = WebCommand.Reset(serviceId, layout),
             )
     }
 
-    /** Debug/instrumentation seam; release UI never exposes layout selection. */
+    /** Instrumentation seam retained for explicit layout contract tests. */
     fun selectServiceForTest(
         serviceId: ServiceId,
         layout: PracticeLayout,
     ) {
         selectService(serviceId, layout)
+    }
+
+    fun togglePracticeLayout() {
+        val context = currentContext() ?: return
+        val nextLayout =
+            if (_uiState.value.layout == PracticeLayout.A) {
+                PracticeLayout.B
+            } else {
+                PracticeLayout.A
+            }
+        resetVolatileGuidance()
+        _uiState.update {
+            it.copy(
+                layout = nextLayout,
+                checkpoint = context.service.steps.first().id,
+                helpPromptVisible = false,
+                helpPromptFromFriction = false,
+                guidanceShown = false,
+                webCommand = WebCommand.Reset(context.serviceId, nextLayout),
+                notice = "화면 위치가 바뀌었어요. 길눈은 같은 의미의 버튼을 다시 찾을 수 있어요.",
+                receiptMessage = null,
+                speechUnavailable = false,
+            )
+        }
     }
 
     fun goHome() {
