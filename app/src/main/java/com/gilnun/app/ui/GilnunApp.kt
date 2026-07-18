@@ -108,7 +108,6 @@ fun GilnunApp(viewModel: GilnunViewModel) {
                 onHome = viewModel::goHome,
                 onRead = viewModel::readGuidance,
                 onHelp = viewModel::requestHelp,
-                onChangeLayout = viewModel::togglePracticeLayout,
                 onEvent = viewModel::onBridgeEvent,
                 onBridgeStatus = viewModel::onBridgeStatus,
                 onSecurityEvent = viewModel::onSecurityEvent,
@@ -262,12 +261,17 @@ private fun ValueProposition() {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                text = "좌표는 빗나가도,\n의미는 다시 찾습니다.",
+                text = "화면이 바뀌어도, 해야 할 일을 다시 찾아드려요",
                 style = MaterialTheme.typography.headlineLarge,
                 color = GilnunYellow,
             )
             Text(
-                text = "길눈은 화면에서 막히는 순간을 알아채고, 동의를 받은 뒤 검증된 한 단계 도움만 다시 보여드려요.",
+                text = "좌표는 빗나가도, 의미는 다시 찾습니다.",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+            )
+            Text(
+                text = "복잡한 민원 화면에서 버튼의 이름·역할·다음 단계를 확인해 필요한 곳을 다시 찾습니다.",
                 style = MaterialTheme.typography.bodyLarge,
             )
             ProofPoint("1", "복잡한 화면에서 막힌 한 단계만 찾아요")
@@ -408,7 +412,6 @@ private fun PracticeScreen(
     onHome: () -> Unit,
     onRead: () -> Unit,
     onHelp: () -> Unit,
-    onChangeLayout: () -> Unit,
     onEvent: (com.gilnun.app.web.BridgeEventV2) -> Unit,
     onBridgeStatus: (com.gilnun.app.web.BridgeStatus) -> Unit,
     onSecurityEvent: (String) -> Unit,
@@ -445,9 +448,8 @@ private fun PracticeScreen(
         ) {
             PracticeTopBar(
                 stepIndex = stepIndex,
-                layout = state.layout,
+                totalSteps = service.steps.size,
                 onHome = onHome,
-                onChangeLayout = onChangeLayout,
             )
             if (state.receiptMessage != null) {
                 HumanReceipt(state.receiptMessage)
@@ -536,9 +538,8 @@ private fun PracticeLoadingOverlay(serviceId: ServiceId) {
 @Composable
 private fun PracticeTopBar(
     stepIndex: Int,
-    layout: com.gilnun.app.web.PracticeLayout,
+    totalSteps: Int,
     onHome: () -> Unit,
-    onChangeLayout: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -551,33 +552,11 @@ private fun PracticeTopBar(
             Text("← 홈으로")
         }
         Text(
-            text = "${stepIndex.coerceIn(1, 3)} / 3 단계",
+            text = "${stepIndex.coerceIn(1, totalSteps)} / $totalSteps 단계",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.fillMaxWidth(),
         )
-        if (stepIndex == 1) {
-            OutlinedButton(
-                onClick = onChangeLayout,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = 56.dp),
-            ) {
-                Text(
-                    if (layout == com.gilnun.app.web.PracticeLayout.A) {
-                        "화면 배치 바꿔보기"
-                    } else {
-                        "원래 배치로 돌아가기"
-                    },
-                )
-            }
-            Text(
-                text = "위치가 달라져도 도움 버튼을 누르면 같은 의미의 선택을 다시 찾아요.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.outline,
-            )
-        }
     }
 }
 
@@ -613,7 +592,7 @@ private fun PracticeDock(
                         .fillMaxWidth()
                         .defaultMinSize(minHeight = 56.dp),
             ) {
-                Text("도움이 필요해요")
+                Text("길눈에게 찾아달라고 하기")
             }
         }
     }
@@ -917,9 +896,9 @@ private fun ServiceId.shortTitle(): String =
 
 private fun ServiceId.homeDescription(): String =
     when (this) {
-        ServiceId.BASIC_PENSION -> "가상 정보로 신청 순서를 익혀요"
-        ServiceId.RESIDENT_RECORD -> "법적 효력 없는 모의 등본을 확인해요"
-        ServiceId.HEALTH_SCREENING -> "2026년 모의 조회 과정을 익혀요"
+        ServiceId.BASIC_PENSION -> "신청 관계와 확인 항목 사이에서 다음 순서를 찾아요"
+        ServiceId.RESIDENT_RECORD -> "문서·주소·발급 형태·수령 방법을 차례로 선택해요"
+        ServiceId.HEALTH_SCREENING -> "민원 메뉴와 조회 기준 사이에서 대상 조회를 찾아요"
     }
 
 private fun ServiceId.portalLabel(): String =

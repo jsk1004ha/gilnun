@@ -98,18 +98,24 @@ class GuidanceJourneyInstrumentationTest {
 
     @Test
     fun layoutsAAndBKeepTheSameSemanticTarget() {
-        val serviceId = ServiceId.BASIC_PENSION
-        val patch = ServiceCatalog.builtInPatch(serviceId, "pension-applicant")
+        ServiceId.entries.forEach { serviceId ->
+            val service = ServiceCatalog.require(serviceId)
+            viewModel.selectServiceForTest(serviceId, PracticeLayout.A)
+            val commandA = viewModel.uiState.value.webCommand as WebCommand.Reset
+            viewModel.selectServiceForTest(serviceId, PracticeLayout.B)
+            val commandB = viewModel.uiState.value.webCommand as WebCommand.Reset
 
-        viewModel.selectServiceForTest(serviceId, PracticeLayout.A)
-        val commandA = viewModel.uiState.value.webCommand as WebCommand.Reset
-        viewModel.selectServiceForTest(serviceId, PracticeLayout.B)
-        val commandB = viewModel.uiState.value.webCommand as WebCommand.Reset
-
-        assertEquals(PracticeLayout.A, commandA.layout)
-        assertEquals(PracticeLayout.B, commandB.layout)
-        assertNotNull(patch)
-        assertEquals(patch, ServiceCatalog.builtInPatch(serviceId, "pension-applicant"))
+            assertEquals(PracticeLayout.A, commandA.layout)
+            assertEquals(PracticeLayout.B, commandB.layout)
+            service.steps.forEach { step ->
+                val patch = ServiceCatalog.builtInPatch(serviceId, step.id)
+                assertNotNull(patch)
+                assertEquals(step.primaryAction?.stableKey, patch?.stableKey)
+                assertEquals(step.primaryAction?.role, patch?.role)
+                assertEquals(step.primaryAction?.accessibleName, patch?.accessibleName)
+                assertEquals(step.primaryAction?.expectedCheckpoint, patch?.expectedState)
+            }
+        }
     }
 
     @Test

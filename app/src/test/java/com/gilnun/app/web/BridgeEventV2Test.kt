@@ -77,9 +77,9 @@ class BridgeEventV2Test {
                 valid.replace(""""schemaVersion":2""", """"schemaVersion":1"""),
                 valid.replace("basic-pension", "unknown-service"),
                 valid.replace("2026-07", "2026-08"),
-                valid.replace("pension-applicant", "unknown-checkpoint"),
-                valid.replace("pension-applicant-confirm", "pension-self-apply"),
-                valid.replace("가상 신청자 정보 확인", "다른 이름"),
+                valid.replace("pension-service", "unknown-checkpoint"),
+                valid.replace("pension-service-select", "pension-self-apply"),
+                valid.replace("기초연금 신청 연습", "다른 이름"),
                 valid.replace(""""role":"button"""", """"role":"link""""),
                 valid.replace(""""effect":"PROGRESS"""", """"effect":"NON_PROGRESS""""),
                 valid.replace(""""type":"ACTION"""", """"type":"HELP""""),
@@ -132,7 +132,7 @@ class BridgeEventV2Test {
         val valid = validProgressPayload()
         val oversizedName =
             valid.replace(
-                "가상 신청자 정보 확인",
+                "기초연금 신청 연습",
                 "가".repeat(BridgeEventV2Parser.MAX_STRING_LENGTH + 1),
             )
         val oversizedPayload =
@@ -152,7 +152,7 @@ class BridgeEventV2Test {
         val checkpointChanged = checkpointPayload(pension, pension.route.first().id)
 
         assertRejected(valid.replace(""""schemaVersion":2""", """"schemaVersion":"2""""))
-        assertRejected(valid.replace(""""accessibleName":"가상 신청자 정보 확인"""", """"accessibleName":true"""))
+        assertRejected(valid.replace(""""accessibleName":"기초연금 신청 연습"""", """"accessibleName":true"""))
         assertRejected(valid.replace(""""type":"ACTION"""", """"type":"CLICK""""))
         assertRejected("[]")
         assertRejected(checkpointChanged.replaceFirst("{", """{"effect":"PROGRESS","""))

@@ -163,8 +163,8 @@ foreach ($token in @(
 )) {
     Assert-Contains -Text $allAssets -Expected $token -Description 'practice contract token'
 }
-if ($allAssets -match '(?is)<\s*(form|input|textarea|select)\b') {
-    throw 'Practice assets contain a form or input element.'
+if ($allAssets -match '(?is)<\s*(form|input|textarea)\b') {
+    throw 'Practice assets contain a form or free-entry input element.'
 }
 if ($allAssets -match '(?i)\b(submit|payment|login)\b|제출|결제|로그인') {
     throw 'Practice assets contain a real submission, payment, or login affordance.'
@@ -184,8 +184,8 @@ if ($apkanalyzerExitCode -ne 0) {
 }
 $manifest = $manifestLines | Out-String
 Assert-Contains -Text $manifest -Expected 'package="com.gilnun.app"' -Description 'application package'
-Assert-Contains -Text $manifest -Expected 'android:versionCode="2"' -Description 'version code'
-Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.0"' -Description 'version name'
+Assert-Contains -Text $manifest -Expected 'android:versionCode="3"' -Description 'version code'
+Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.1"' -Description 'version name'
 if ($manifest -match 'android:debuggable="true"') { throw 'Release APK is debuggable.' }
 foreach ($permission in @(
     'android.permission.INTERNET',
