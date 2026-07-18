@@ -74,14 +74,15 @@ fun GilnunApp(viewModel: GilnunViewModel) {
     val animationsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
 
     LaunchedEffect(Unit) {
-        if (animationsEnabled) {
-            delay(STARTUP_DURATION_MS)
+        val delayMs = GilnunPresentationPolicy.startupDelayMs(animationsEnabled)
+        if (delayMs > 0) {
+            delay(delayMs)
         }
         showStartup = false
     }
 
     if (showStartup) {
-        StartupScreen()
+        StartupScreen(onSkip = { showStartup = false })
         return
     }
 
@@ -136,7 +137,7 @@ fun GilnunApp(viewModel: GilnunViewModel) {
 }
 
 @Composable
-private fun StartupScreen() {
+private fun StartupScreen(onSkip: () -> Unit) {
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val logoAlpha by
@@ -191,6 +192,21 @@ private fun StartupScreen() {
                 color = GilnunYellow,
                 trackColor = Color.White.copy(alpha = 0.25f),
             )
+            Button(
+                onClick = onSkip,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = GilnunYellow,
+                        contentColor = GilnunNavy,
+                    ),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 20.dp)
+                        .defaultMinSize(minHeight = 56.dp),
+            ) {
+                Text("바로 시작하기")
+            }
         }
     }
 }
@@ -456,9 +472,7 @@ private fun PracticeScreen(
                     command = state.webCommand,
                     onEvent = onEvent,
                     onBridgeStatus = { status ->
-                        if (status == com.gilnun.app.web.BridgeStatus.PageReady ||
-                            status is com.gilnun.app.web.BridgeStatus.PageFailed
-                        ) {
+                        if (GilnunPresentationPolicy.dismissLoading(status)) {
                             pageReady = true
                         }
                         onBridgeStatus(status)
@@ -914,5 +928,3 @@ private fun ServiceId.portalLabel(): String =
         ServiceId.RESIDENT_RECORD -> "정부24형 복잡 화면"
         ServiceId.HEALTH_SCREENING -> "건강보험형 복잡 화면"
     }
-
-private const val STARTUP_DURATION_MS = 720L

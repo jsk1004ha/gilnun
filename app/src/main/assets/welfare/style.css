@@ -672,9 +672,32 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .progress-list,
-  .layout-b .progress-list {
+  .progress-list {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout-b .side-menu {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .layout-b .side-menu .panel-label,
+  .layout-b .side-menu .progress-list {
+    grid-column: 1 / -1;
+  }
+
+  .layout-b .progress-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .layout-b .progress-list li {
+    padding: 10px;
+  }
+
+  .layout-b .step-groups {
+    padding-top: 12px;
+    border-top: 8px solid var(--yellow);
   }
 
   .read-only-choice-row {
