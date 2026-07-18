@@ -349,6 +349,12 @@ class PracticeAssetContractTest {
         assertFalse(Regex("""(?i)https?://""").containsMatchIn(allAssets))
         assertFalse(Regex("""(?i)<\s*form\b""").containsMatchIn(html))
         assertFalse(Regex("""(?i)<\s*(input|textarea)\b""").containsMatchIn(html))
+        assertFalse(
+            "Dynamic form and free-entry controls are forbidden",
+            Regex(
+                """(?i)(?:document\.)?createElement\s*\(\s*["'](?:form|input|textarea)["']""",
+            ).containsMatchIn(javascript),
+        )
         assertFalse(Regex("""(?i)\.(click|dispatchEvent)\s*\(""").containsMatchIn(javascript))
         assertFalse(Regex("""(?i)\b(submit|payment|login)\b""").containsMatchIn(javascript))
     }
@@ -404,11 +410,16 @@ class PracticeAssetContractTest {
     @Test
     fun `layout B relocates groups while semantic recovery keeps one exact target`() {
         assertContains(javascript, "function createSemanticTarget")
+        assertContains(javascript, "function orderedSectionEntries")
+        assertContains(javascript, "entries.slice(currentStepIndex + 1)")
+        assertContains(javascript, "entries.slice(0, currentStepIndex).reverse()")
+        assertContains(javascript, "function orderedChoices")
         assertContains(javascript, "applyAutomaticLayoutUpdate();")
         assertContains(javascript, "위치가 달라져도 의미를 다시 찾았어요.")
         assertContains(javascript, "이름·역할·다음 상태")
         assertContains(css, ".layout-b .service-workspace")
         assertContains(css, ".layout-b .step-groups")
+        assertContains(css, ".layout-b .service-form-section.is-current")
         assertEquals(
             "Only the semantic target factory may assign stable keys",
             1,
@@ -421,6 +432,29 @@ class PracticeAssetContractTest {
             Regex(
                 """applyAutomaticLayoutUpdate\(\);\s*renderCurrent\(\);\s*emitCheckpointChanged\(\);""",
             ).containsMatchIn(javascript),
+        )
+    }
+
+    @Test
+    fun `all three realistic services keep five sections together with only the current target active`() {
+        assertContains(javascript, "function createServiceFormSection")
+        assertContains(javascript, "function createResidentFormSection")
+        assertContains(javascript, "service-section-stack pension-section-stack")
+        assertContains(javascript, "resident-application-form")
+        assertContains(javascript, "service-section-stack health-section-stack")
+        assertContains(javascript, "section.dataset.sectionCheckpoint = step.checkpoint")
+        assertContains(javascript, "if (isCurrent && label === step.accessibleName)")
+        assertContains(javascript, "if (!isCurrent)")
+        assertContains(javascript, "이 연습의 다음 순서는 아니에요")
+        assertContains(javascript, "jurisdiction ? jurisdiction.isExpected")
+        assertContains(javascript, """selectedValues[0].value === "서울특별시(가상)"""")
+        assertContains(javascript, """selectedValues[1].value === "길눈구(가상)"""")
+        assertEquals(
+            "Each service renderer must append every ordered section",
+            3,
+            javascript.windowed("orderedSectionEntries().forEach".length).count {
+                it == "orderedSectionEntries().forEach"
+            },
         )
     }
 
@@ -514,6 +548,11 @@ class PracticeAssetContractTest {
         assertContains(highlightBody, "target.getAttribute(\"aria-label\") === command.accessibleName")
         assertContains(highlightBody, "matches.length !== 1")
         assertFalse(Regex("""(?i)\.(click|dispatchEvent)\s*\(""").containsMatchIn(highlightBody))
+        assertFalse(
+            "The correct target must not look different before native help is requested",
+            Regex("""\.choice-control\[data-stable-key\]""").containsMatchIn(css),
+        )
+        assertContains(css, ".gilnun-highlight")
         assertContains(javascript, """command.command === "CLEAR_HIGHLIGHT"""")
         assertContains(javascript, "command.schemaVersion === PATCH_SCHEMA_VERSION")
     }

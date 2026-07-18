@@ -588,7 +588,18 @@
     setStatus(`${label} 항목을 선택했어요. 안내된 선택을 찾으면 다음 단계로 이동해요.`);
   }
 
-  function createChoiceButtons(step, className) {
+  function orderedChoices(step) {
+    const choices = Array.from(step.choices);
+    const stepIndex = service.steps.indexOf(step);
+    const shift = (stepIndex + (activeLayout === "B" ? 2 : 1)) % choices.length;
+    return choices.slice(shift).concat(choices.slice(0, shift));
+  }
+
+  function createChoiceButtons(
+    step,
+    className,
+    { isCurrent = true, canProgress = () => true, blockedStatus = "" } = {},
+  ) {
     const group = createElement("div", className);
     if (step.role === "radio") {
       group.setAttribute("role", "radiogroup");
@@ -597,7 +608,7 @@
       group.setAttribute("role", "tablist");
       group.setAttribute("aria-label", "문서 종류");
     }
-    step.choices.forEach((label) => {
+    orderedChoices(step).forEach((label) => {
       const control = createElement("button", "choice-control", label);
       control.type = "button";
       if (step.role === "radio") {
@@ -609,21 +620,31 @@
       } else {
         control.setAttribute("aria-pressed", "false");
       }
-      if (label === step.accessibleName) {
+      if (isCurrent && label === step.accessibleName) {
         createSemanticTarget(control, step);
       }
       control.addEventListener("click", () => {
         selectLocalChoice(group, control, step.role, label);
-        if (label === step.accessibleName) {
-          handleInteraction(step);
+        if (!isCurrent) {
+          setStatus(`${currentStepIndex + 1}단계부터 차례로 확인해 주세요.`);
+          return;
         }
+        if (label !== step.accessibleName) {
+          setStatus(`${label}을(를) 선택했어요. 이 연습의 다음 순서는 아니에요.`);
+          return;
+        }
+        if (!canProgress()) {
+          setStatus(blockedStatus || "먼저 이 구역의 선택 내용을 확인해 주세요.");
+          return;
+        }
+        handleInteraction(step);
       });
       group.append(control);
     });
     return group;
   }
 
-  function createChoiceSelect(step) {
+  function createChoiceSelect(step, { isCurrent = true } = {}) {
     const wrap = createElement("div", "fixed-select-wrap");
     const label = createElement("span", "fixed-select-label", "수령 방법 선택");
     const select = createElement("select", "fixed-choice-select");
@@ -632,17 +653,23 @@
     prompt.disabled = true;
     prompt.selected = true;
     select.append(prompt);
-    step.choices.forEach((choice) => {
+    orderedChoices(step).forEach((choice) => {
       const option = createElement("option", "", choice);
       option.value = choice;
       select.append(option);
     });
-    createSemanticTarget(select, step);
+    if (isCurrent) {
+      createSemanticTarget(select, step);
+    }
     select.addEventListener("change", () => {
       const selected = select.value;
       setStatus(`${selected} 항목을 선택했어요.`);
-      if (selected === step.accessibleName) {
+      if (!isCurrent) {
+        setStatus(`${currentStepIndex + 1}단계부터 차례로 확인해 주세요.`);
+      } else if (selected === step.accessibleName) {
         handleInteraction(step);
+      } else {
+        setStatus(`${selected}은(는) 이 연습의 다음 순서는 아니에요.`);
       }
     });
     wrap.append(label, select);
@@ -689,6 +716,71 @@
     return notice;
   }
 
+  function orderedSectionEntries() {
+    const entries = service.steps.map((step, index) => ({ step, index }));
+    if (activeLayout !== "B" || currentStepIndex === 0) {
+      return entries;
+    }
+    return [
+      entries[currentStepIndex],
+      ...entries.slice(currentStepIndex + 1),
+      ...entries.slice(0, currentStepIndex).reverse(),
+    ];
+  }
+
+  function sectionStateClass(index) {
+    if (index === currentStepIndex) return "is-current";
+    return index < currentStepIndex ? "is-complete" : "is-upcoming";
+  }
+
+  function createSectionHeader(step, index) {
+    const header = createElement("header", "service-form-section__header");
+    const stateLabel =
+      index === currentStepIndex ? "현재 확인할 항목" : index < currentStepIndex ? "확인한 항목" : "이어서 확인할 항목";
+    header.append(
+      createElement("span", "resident-section-number", `${index + 1}. ${stateLabel}`),
+      createElement("h3", "", step.title),
+    );
+    return header;
+  }
+
+  function createServiceFormSection(step, index, variant) {
+    const isCurrent = index === currentStepIndex;
+    const section = createElement(
+      "section",
+      `service-form-section ${variant}-form-section ${sectionStateClass(index)}`,
+    );
+    section.dataset.sectionCheckpoint = step.checkpoint;
+    section.append(createSectionHeader(step, index), createGroupedSummary(step));
+
+    const choiceBoard = createElement("div", `choice-board ${variant}-choice-board`);
+    choiceBoard.append(
+      createElement("h4", "", isCurrent ? "지금 선택할 내용" : "같은 화면에 있는 선택 항목"),
+      createChoiceButtons(step, variant === "health" ? "health-choice-grid" : "choice-grid", {
+        isCurrent,
+      }),
+    );
+    section.append(choiceBoard);
+    if (isCurrent) {
+      section.append(createSafetyNotice(step));
+      if (step.friction) {
+        const actions = createElement("div", "actions");
+        actions.append(createFrictionButton(step.friction));
+        section.append(actions);
+      }
+    }
+    return section;
+  }
+
+  function replacePracticeContent(headingGroup, content) {
+    const contentNodes = [headingGroup];
+    if (didAutomaticLayoutUpdate && activeLayout === "B") {
+      contentNodes.push(layoutUpdateNotice);
+    }
+    contentNodes.push(content);
+    practiceRoot.replaceChildren(...contentNodes);
+  }
+
   function renderPensionStep(moveFocus) {
     const step = service.steps[currentStepIndex];
     const { headingGroup, heading } = createStepHeading(step);
@@ -696,18 +788,15 @@
     const benefitCard = createElement("section", "pension-benefit-card");
     benefitCard.append(
       createElement("p", "panel-label", "따뜻한 노후생활 길잡이"),
-      createElement("h3", "", step.groupTitle),
-      createElement("p", "", "큰 글씨와 고정된 선택지로 신청 순서를 안전하게 익혀 보세요."),
+      createElement("h3", "", "기초연금 신청 항목을 한 화면에서 확인해요"),
+      createElement("p", "", "서비스, 신청인, 관계, 연락 방법, 최종 확인 항목이 함께 보입니다."),
     );
-    const choiceBoard = createElement("section", "choice-board pension-choice-board");
-    choiceBoard.append(createElement("h3", "", "이 단계에서 선택할 내용"), createChoiceButtons(step, "choice-grid"));
-    composition.append(benefitCard, createGroupedSummary(step), choiceBoard, createSafetyNotice(step));
-    if (step.friction) {
-      const actions = createElement("div", "actions");
-      actions.append(createFrictionButton(step.friction));
-      composition.append(actions);
-    }
-    practiceRoot.replaceChildren(headingGroup, composition);
+    const sections = createElement("div", "service-section-stack pension-section-stack");
+    orderedSectionEntries().forEach(({ step: sectionStep, index }) => {
+      sections.append(createServiceFormSection(sectionStep, index, "pension"));
+    });
+    composition.append(benefitCard, sections);
+    replacePracticeContent(headingGroup, composition);
     setStatus(`${currentStepIndex + 1}단계 복지서비스 신청 연습을 진행하고 있어요.`);
     if (moveFocus) heading.focus();
   }
@@ -715,6 +804,7 @@
   function createFixedJurisdiction() {
     const region = createElement("section", "resident-jurisdiction");
     region.append(createElement("h3", "", "행정구역 (가상)"));
+    const selectedValues = [];
     [["시·도", ["서울특별시(가상)", "길눈시(가상)", "새봄도(가상)", "한빛도(가상)"]], ["시·군·구", ["길눈구(가상)", "연습구(가상)", "새길군(가상)", "도움구(가상)"]]].forEach(([title, values]) => {
       const wrap = createElement("div", "fixed-select-wrap");
       const label = createElement("span", "fixed-select-label", title);
@@ -725,11 +815,17 @@
         option.value = value;
         select.append(option);
       });
+      selectedValues.push(select);
       select.addEventListener("change", () => setStatus(`${select.value} 항목을 가상 주소로 선택했어요.`));
       wrap.append(label, select);
       region.append(wrap);
     });
-    return region;
+    return {
+      region,
+      isExpected: () =>
+        selectedValues[0].value === "서울특별시(가상)" &&
+        selectedValues[1].value === "길눈구(가상)",
+    };
   }
 
   function createMockDocument(step) {
@@ -745,6 +841,44 @@
     return preview;
   }
 
+  function createResidentFormSection(step, index) {
+    const isCurrent = index === currentStepIndex;
+    const section = createElement(
+      "section",
+      `resident-form-section ${sectionStateClass(index)}`,
+    );
+    section.dataset.sectionCheckpoint = step.checkpoint;
+    section.append(createSectionHeader(step, index), createGroupedSummary(step));
+
+    let jurisdiction = null;
+    if (step.checkpoint === "resident-address") {
+      jurisdiction = createFixedJurisdiction();
+      section.append(jurisdiction.region);
+    }
+    const controls =
+      step.role === "combobox"
+        ? createChoiceSelect(step, { isCurrent })
+        : createChoiceButtons(
+            step,
+            step.role === "tab" ? "resident-document-tabs" : "resident-control-grid",
+            {
+              isCurrent,
+              canProgress: jurisdiction ? jurisdiction.isExpected : () => true,
+              blockedStatus: "서울특별시(가상)와 길눈구(가상)를 선택한 뒤 주소를 확인해 주세요.",
+            },
+          );
+    section.append(controls);
+    if (isCurrent) {
+      section.append(createSafetyNotice(step));
+      if (step.friction) {
+        const actions = createElement("div", "actions");
+        actions.append(createFrictionButton(step.friction));
+        section.append(actions);
+      }
+    }
+    return section;
+  }
+
   function renderResidentStep(moveFocus) {
     const step = service.steps[currentStepIndex];
     const { headingGroup, heading } = createStepHeading(step);
@@ -752,23 +886,12 @@
     const alert = createElement("details", "resident-alert");
     const alertTitle = createElement("summary", "", "신청 전 꼭 확인하세요");
     alert.append(alertTitle, createElement("p", "", "이 화면은 민원 신청 구조를 익히는 연습이며 실제 문서를 만들지 않습니다."));
-    const application = createElement("section", "resident-application-panel");
-    application.append(createElement("p", "resident-section-number", `신청 항목 ${currentStepIndex + 1}`));
-    if (step.checkpoint === "resident-address") {
-      application.append(createFixedJurisdiction());
-    }
-    const controls =
-      step.role === "combobox"
-        ? createChoiceSelect(step)
-        : createChoiceButtons(step, step.role === "tab" ? "resident-document-tabs" : "resident-control-grid");
-    application.append(createGroupedSummary(step), controls, createSafetyNotice(step));
-    if (step.friction) {
-      const actions = createElement("div", "actions");
-      actions.append(createFrictionButton(step.friction));
-      application.append(actions);
-    }
+    const application = createElement("div", "resident-application-form");
+    orderedSectionEntries().forEach(({ step: sectionStep, index }) => {
+      application.append(createResidentFormSection(sectionStep, index));
+    });
     shell.append(alert, application, createMockDocument(step));
-    practiceRoot.replaceChildren(headingGroup, shell);
+    replacePracticeContent(headingGroup, shell);
     setStatus(`${currentStepIndex + 1}단계 모의 민원 신청서를 작성하고 있어요.`);
     if (moveFocus) heading.focus();
   }
@@ -780,19 +903,15 @@
     const statusCard = createElement("section", "health-status-card");
     statusCard.append(
       createElement("span", "health-symbol", "건강"),
-      createElement("h3", "", step.groupTitle),
-      createElement("p", "", "검진 대상 여부를 알아보는 모의 조회입니다."),
+      createElement("h3", "", "건강검진 조회 조건을 한 화면에서 확인해요"),
+      createElement("p", "", "조회 사용자, 기준 연도, 검진 종류, 대상 조회 항목이 함께 보입니다."),
     );
-    const conditions = createGroupedSummary(step);
-    const choiceBoard = createElement("section", "choice-board health-choice-board");
-    choiceBoard.append(createElement("h3", "", "조회 조건 선택"), createChoiceButtons(step, "health-choice-grid"));
-    dashboard.append(statusCard, conditions, choiceBoard, createSafetyNotice(step));
-    if (step.friction) {
-      const actions = createElement("div", "actions");
-      actions.append(createFrictionButton(step.friction));
-      dashboard.append(actions);
-    }
-    practiceRoot.replaceChildren(headingGroup, dashboard);
+    const sections = createElement("div", "service-section-stack health-section-stack");
+    orderedSectionEntries().forEach(({ step: sectionStep, index }) => {
+      sections.append(createServiceFormSection(sectionStep, index, "health"));
+    });
+    dashboard.append(statusCard, sections);
+    replacePracticeContent(headingGroup, dashboard);
     setStatus(`${currentStepIndex + 1}단계 건강검진 조회 조건을 확인하고 있어요.`);
     if (moveFocus) heading.focus();
   }

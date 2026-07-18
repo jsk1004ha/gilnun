@@ -95,42 +95,46 @@ fun GilnunApp(viewModel: GilnunViewModel) {
         )
     }
 
-    when (state.screen) {
-        GilnunScreen.HOME ->
-            HomeScreen(
-                onSelectService = viewModel::selectService,
-            )
+    if (state.screen == GilnunScreen.HOME) {
+        HomeScreen(onSelectService = viewModel::selectService)
+        return
+    }
 
-        GilnunScreen.PRACTICE -> {
-            BackHandler(onBack = viewModel::goHome)
-            PracticeScreen(
-                state = state,
-                onHome = viewModel::goHome,
-                onRead = viewModel::readGuidance,
-                onHelp = viewModel::requestHelp,
-                onEvent = viewModel::onBridgeEvent,
-                onBridgeStatus = viewModel::onBridgeStatus,
-                onSecurityEvent = viewModel::onSecurityEvent,
-            )
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Keep the owned WebView alive while native handoff screens cover it. Recreating the
+        // WebView would restart the local practice document at checkpoint one.
+        PracticeScreen(
+            state = state,
+            onHome = viewModel::goHome,
+            onRead = viewModel::readGuidance,
+            onHelp = viewModel::requestHelp,
+            onEvent = viewModel::onBridgeEvent,
+            onBridgeStatus = viewModel::onBridgeStatus,
+            onSecurityEvent = viewModel::onSecurityEvent,
+        )
 
-        GilnunScreen.HELPER_CONFIRM -> {
-            BackHandler(onBack = viewModel::cancelHelperHandoff)
-            HelperConfirmScreen(
-                state = state,
-                onConfirm = viewModel::confirmHelperTarget,
-                onCancel = viewModel::cancelHelperHandoff,
-                onHome = viewModel::goHome,
-            )
-        }
+        when (state.screen) {
+            GilnunScreen.PRACTICE -> BackHandler(onBack = viewModel::goHome)
+            GilnunScreen.HELPER_CONFIRM -> {
+                BackHandler(onBack = viewModel::cancelHelperHandoff)
+                HelperConfirmScreen(
+                    state = state,
+                    onConfirm = viewModel::confirmHelperTarget,
+                    onCancel = viewModel::cancelHelperHandoff,
+                    onHome = viewModel::goHome,
+                )
+            }
 
-        GilnunScreen.HAND_BACK -> {
-            BackHandler(onBack = viewModel::returnToLearner)
-            HandBackScreen(
-                state = state,
-                onReturn = viewModel::returnToLearner,
-                onHome = viewModel::goHome,
-            )
+            GilnunScreen.HAND_BACK -> {
+                BackHandler(onBack = viewModel::returnToLearner)
+                HandBackScreen(
+                    state = state,
+                    onReturn = viewModel::returnToLearner,
+                    onHome = viewModel::goHome,
+                )
+            }
+
+            GilnunScreen.HOME -> Unit
         }
     }
 }

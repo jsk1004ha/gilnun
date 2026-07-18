@@ -116,6 +116,13 @@ dd {
   font-size: 22px;
 }
 
+h4 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 22px;
+  line-height: 1.3;
+}
+
 .layout-update-notice {
   display: grid;
   width: min(100%, 920px);
@@ -509,10 +516,6 @@ dd {
   box-shadow: inset 0 0 0 2px var(--teal);
 }
 
-.choice-control[data-stable-key] {
-  border-width: 3px;
-}
-
 .fixed-select-wrap {
   display: grid;
   min-width: 0;
@@ -553,6 +556,52 @@ dd {
   border-left: 8px solid var(--teal);
 }
 
+.service-section-stack,
+.resident-application-form {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
+.service-form-section,
+.resident-form-section {
+  min-width: 0;
+  padding: 18px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+}
+
+.service-form-section.is-current,
+.resident-form-section.is-current {
+  border: 4px solid var(--teal);
+  box-shadow: 0 0 0 5px rgba(20, 125, 132, 0.12);
+}
+
+.service-form-section.is-complete,
+.resident-form-section.is-complete {
+  background: var(--teal-soft);
+}
+
+.service-form-section__header {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.service-form-section__header h3 {
+  font-size: 26px;
+}
+
+.service-form-section .grouped-summary,
+.resident-form-section .grouped-summary {
+  margin-top: 14px;
+}
+
+.service-form-section .choice-board {
+  margin-top: 14px;
+}
+
 .resident-application-shell {
   grid-template-columns: minmax(0, 1.4fr) minmax(210px, 0.6fr);
   align-items: start;
@@ -579,6 +628,13 @@ dd {
 .resident-application-panel {
   min-width: 0;
   padding: 20px;
+  border: 2px solid var(--navy);
+  background: var(--cloud);
+}
+
+.resident-application-form {
+  min-width: 0;
+  padding: 16px;
   border: 2px solid var(--navy);
   background: var(--cloud);
 }
@@ -854,7 +910,27 @@ dd {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.layout-just-updated .step-groups {
+.layout-b .service-form-section.is-current,
+.layout-b .resident-form-section.is-current {
+  border-color: var(--yellow);
+  box-shadow: 0 0 0 6px rgba(242, 201, 76, 0.24);
+}
+
+.layout-b .service-form-section__header {
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--yellow);
+}
+
+.layout-b .service-form-section .choice-grid,
+.layout-b .resident-form-section .resident-control-grid,
+.layout-b .resident-form-section .resident-document-tabs,
+.layout-b .health-form-section .health-choice-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.layout-just-updated .step-groups,
+.layout-just-updated .service-form-section,
+.layout-just-updated .resident-form-section {
   animation: layout-settled 450ms ease-out;
 }
 

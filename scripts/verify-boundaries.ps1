@@ -166,6 +166,9 @@ foreach ($token in @(
 if ($allAssets -match '(?is)<\s*(form|input|textarea)\b') {
     throw 'Practice assets contain a form or free-entry input element.'
 }
+if ($script -match '(?i)(?:document\.)?createElement\s*\(\s*["''](?:form|input|textarea)["'']') {
+    throw 'Practice assets dynamically create a form or free-entry input element.'
+}
 if ($allAssets -match '(?i)\b(submit|payment|login)\b|제출|결제|로그인') {
     throw 'Practice assets contain a real submission, payment, or login affordance.'
 }

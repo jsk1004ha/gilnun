@@ -555,7 +555,8 @@ class GilnunViewModel(
     )
 
     companion object {
-        const val HUMAN_RECEIPT_MESSAGE = "안내 표시 → 직접 선택 → 다음 화면 확인"
+        const val HUMAN_RECEIPT_MESSAGE =
+            "예전 위치가 아니라, 이름과 역할을 확인해 찾았어요 · 안내 표시 → 직접 선택 → 다음 화면 확인"
         const val TTS_UNAVAILABLE_MESSAGE = "이 기기에서는 안내 읽기를 사용할 수 없어요"
         const val COMPLETION_HELP_MESSAGE = "연습을 모두 마쳤어요. 홈으로 돌아가 다른 연습을 시작할 수 있어요."
     }
