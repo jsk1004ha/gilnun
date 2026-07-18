@@ -43,6 +43,16 @@ class PracticeAssetContractTest {
     fun `practice shell explains semantic recovery and exposes institution shaped landmarks`() {
         assertContains(html, "좌표는 빗나가도, 의미는 다시 찾습니다.")
         assertContains(html, "버튼의 위치가 달라져도 이름·역할·다음 상태를 확인해 다시 찾습니다.")
+        assertContains(html, """id="layout-update-notice"""")
+        assertContains(html, """role="status"""")
+        assertContains(html, "사이트 화면이 업데이트되어 배치가 바뀌었어요")
+        assertContains(html, "위치를 외우지 않아도 괜찮아요. 길눈은 같은 의미를 다시 찾습니다.")
+        assertTrue(
+            "The update notice must immediately follow the semantic promise",
+            Regex(
+                """semantic-promise[\s\S]*?</section>\s*<[^>]+id="layout-update-notice"[^>]*role="status"[^>]*hidden""",
+            ).containsMatchIn(html),
+        )
         listOf(
             "portal-header",
             "portal-nav",
@@ -57,8 +67,14 @@ class PracticeAssetContractTest {
         assertContains(javascript, "institution: \"정부24형\"")
         assertContains(javascript, "institution: \"건강보험형\"")
         assertContains(javascript, "read-only-choice-row")
-        assertContains(javascript, "inert-decoy")
         assertContains(javascript, "grouped-summary")
+        assertContains(javascript, "function renderPensionStep")
+        assertContains(javascript, "function renderResidentStep")
+        assertContains(javascript, "function renderHealthStep")
+        assertFalse(
+            "Realistic services must not fall back to one generic renderer",
+            "function renderInstitutionStep" in javascript,
+        )
         assertFalse("Decorative shell must not create bridge targets", "data-stable-key" in html)
     }
 
@@ -72,7 +88,7 @@ class PracticeAssetContractTest {
     }
 
     @Test
-    fun `catalog has exactly three services with exact three-step routes`() {
+    fun `catalog has exactly three services with exact five-step routes`() {
         val expected =
             listOf(
                 ExpectedService(
@@ -81,20 +97,37 @@ class PracticeAssetContractTest {
                     checkpoints =
                         listOf(
                             ExpectedStep(
+                                "pension-service",
+                                "pension-service-select",
+                                "button",
+                                "기초연금 신청 연습",
+                                "pension-applicant",
+                            ),
+                            ExpectedStep(
                                 "pension-applicant",
                                 "pension-applicant-confirm",
-                                "가상 신청자 정보 확인",
+                                "button",
+                                "연습 사용자 정보 확인",
                                 "pension-method",
                             ),
                             ExpectedStep(
                                 "pension-method",
                                 "pension-self-apply",
+                                "radio",
                                 "본인이 신청해요",
+                                "pension-contact",
+                            ),
+                            ExpectedStep(
+                                "pension-contact",
+                                "pension-contact-confirm",
+                                "button",
+                                "연락 방법 확인",
                                 "pension-review",
                             ),
                             ExpectedStep(
                                 "pension-review",
                                 "pension-review-confirm",
+                                "button",
                                 "신청 내용 확인",
                                 "pension-complete",
                             ),
@@ -117,19 +150,36 @@ class PracticeAssetContractTest {
                             ExpectedStep(
                                 "resident-type",
                                 "resident-copy-select",
+                                "tab",
                                 "주민등록표 등본",
+                                "resident-address",
+                            ),
+                            ExpectedStep(
+                                "resident-address",
+                                "resident-address-confirm",
+                                "button",
+                                "주소 확인",
+                                "resident-issue-type",
+                            ),
+                            ExpectedStep(
+                                "resident-issue-type",
+                                "resident-standard-issue",
+                                "radio",
+                                "발급(모의)",
                                 "resident-delivery",
                             ),
                             ExpectedStep(
                                 "resident-delivery",
                                 "resident-online-delivery",
-                                "온라인 발급(연습용)",
+                                "combobox",
+                                "온라인발급(본인출력·연습용)",
                                 "resident-review",
                             ),
                             ExpectedStep(
                                 "resident-review",
-                                "resident-preview",
-                                "모의 등본 미리보기",
+                                "resident-finish-practice",
+                                "button",
+                                "민원 신청 연습 마치기",
                                 "resident-complete",
                             ),
                         ),
@@ -149,20 +199,37 @@ class PracticeAssetContractTest {
                     checkpoints =
                         listOf(
                             ExpectedStep(
+                                "health-service",
+                                "health-service-select",
+                                "button",
+                                "건강검진 대상 조회 연습",
+                                "health-person",
+                            ),
+                            ExpectedStep(
                                 "health-person",
                                 "health-person-confirm",
-                                "가상 사용자 정보 확인",
+                                "button",
+                                "연습 사용자 정보 확인",
                                 "health-year",
                             ),
                             ExpectedStep(
                                 "health-year",
                                 "health-year-2026",
-                                "2026년 조회 기준 확인",
+                                "radio",
+                                "2026년(가상)",
+                                "health-kind",
+                            ),
+                            ExpectedStep(
+                                "health-kind",
+                                "health-general-screening",
+                                "radio",
+                                "일반건강검진(모의)",
                                 "health-query",
                             ),
                             ExpectedStep(
                                 "health-query",
                                 "health-screening-query",
+                                "button",
                                 "건강검진 대상 조회",
                                 "health-complete",
                             ),
@@ -186,8 +253,8 @@ class PracticeAssetContractTest {
             assertContains(block, """pageId: "${service.pageId}"""")
             assertContains(block, "revision: REVISION")
             assertEquals(
-                "${service.serviceId} must have exactly three progress steps",
-                3,
+                "${service.serviceId} must have exactly five progress steps",
+                5,
                 Regex("""stableKey:\s*"[^"]+".+?effect:\s*"PROGRESS"""", RegexOption.DOT_MATCHES_ALL)
                     .findAll(block)
                     .count(),
@@ -199,6 +266,7 @@ class PracticeAssetContractTest {
                         """
                         checkpoint: "${step.checkpoint}",
                         stableKey: "${step.stableKey}",
+                        role: "${step.role}",
                         accessibleName: "${step.accessibleName}",
                         nextCheckpoint: "${step.nextCheckpoint}",
                         """.trimIndent(),
@@ -231,6 +299,28 @@ class PracticeAssetContractTest {
     }
 
     @Test
+    fun `all fifteen checkpoints expose at least four deterministic fixed choices`() {
+        val choiceArrays =
+            Regex(
+                """choices:\s*Object\.freeze\(\[((?:\s*"[^"]+"\s*,?){4,})\s*\]\)""",
+                RegexOption.DOT_MATCHES_ALL,
+            ).findAll(javascript).toList()
+
+        assertEquals("One fixed choice array is required per checkpoint", 15, choiceArrays.size)
+        choiceArrays.forEachIndexed { index, match ->
+            assertTrue(
+                "Checkpoint ${index + 1} must expose at least four fixed choices",
+                Regex(""""[^"]+"""").findAll(match.groupValues[1]).count() >= 4,
+            )
+        }
+        assertContains(javascript, "function selectLocalChoice")
+        assertContains(javascript, "aria-pressed")
+        assertContains(javascript, "aria-checked")
+        assertContains(javascript, "aria-selected")
+        assertContains(javascript, """createElement("select"""")
+    }
+
+    @Test
     fun `practice copy is synthetic and exposes only the allowed mock results`() {
         assertContains(javascript, "연습 사용자 (가상)")
         assertContains(javascript, "연습 세대 (가상)")
@@ -258,9 +348,9 @@ class PracticeAssetContractTest {
         }
         assertFalse(Regex("""(?i)https?://""").containsMatchIn(allAssets))
         assertFalse(Regex("""(?i)<\s*form\b""").containsMatchIn(html))
-        assertFalse(Regex("""(?i)<\s*(input|textarea|select)\b""").containsMatchIn(html))
+        assertFalse(Regex("""(?i)<\s*(input|textarea)\b""").containsMatchIn(html))
         assertFalse(Regex("""(?i)\.(click|dispatchEvent)\s*\(""").containsMatchIn(javascript))
-        assertFalse(Regex("""(?i)\b(submit|payment)\b""").containsMatchIn(javascript))
+        assertFalse(Regex("""(?i)\b(submit|payment|login)\b""").containsMatchIn(javascript))
     }
 
     @Test
@@ -283,39 +373,54 @@ class PracticeAssetContractTest {
         )
         assertContains(javascript, """query.get("service")""")
         assertContains(javascript, """query.get("layout")""")
-        assertContains(javascript, """document.body.classList.toggle("layout-b", layout === "B")""")
-        assertContains(css, ".layout-b .actions")
+        assertContains(javascript, "let activeLayout")
+        assertContains(javascript, """document.body.dataset.activeLayout = activeLayout""")
+        assertContains(javascript, "function applyAutomaticLayoutUpdate")
+        assertContains(javascript, "currentStepIndex !== 1")
+        assertContains(javascript, """activeLayout !== "A"""")
+        assertContains(javascript, """activeLayout = "B"""")
+        assertContains(javascript, """.classList.add("layout-b", "layout-just-updated")""")
+        assertContains(javascript, "layoutUpdateNotice.hidden = false")
+        assertContains(javascript, "450")
+        assertFalse("The automatic update must not reload the document", ".reload(" in javascript)
         assertTrue(
-            "Layout B must change presentation without reversing semantic order",
-            Regex("""\.layout-b\s+\.actions\s*\{[^}]*flex-direction:\s*column\s*;""", RegexOption.DOT_MATCHES_ALL)
+            "Layout B must place content before the progress rail",
+            Regex(
+                """\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-areas:\s*"content rail"""",
+                RegexOption.DOT_MATCHES_ALL,
+            )
                 .containsMatchIn(css),
         )
-        assertFalse("Visual order must not diverge from focus order", "column-reverse" in css)
+        assertTrue(
+            "Mobile layout B must still place content before the progress rail",
+            Regex(
+                """@media\s*\(max-width:\s*40rem\)[\s\S]*?\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-areas:\s*"content"\s*"rail"""",
+            ).containsMatchIn(css),
+        )
+        assertFalse("CSS order is forbidden", Regex("""\border\s*:""").containsMatchIn(css))
+        assertFalse("Reverse direction is forbidden", "reverse" in css)
     }
 
     @Test
     fun `layout B relocates groups while semantic recovery keeps one exact target`() {
-        assertContains(javascript, "function renderInstitutionStep")
-        assertContains(javascript, "const primaryButton = createActionButton(step")
-        assertContains(javascript, """document.body.classList.toggle("layout-b", layout === "B")""")
+        assertContains(javascript, "function createSemanticTarget")
+        assertContains(javascript, "applyAutomaticLayoutUpdate();")
         assertContains(javascript, "위치가 달라져도 의미를 다시 찾았어요.")
         assertContains(javascript, "이름·역할·다음 상태")
         assertContains(css, ".layout-b .service-workspace")
         assertContains(css, ".layout-b .step-groups")
-        assertTrue(
-            "Layout B must visibly change the shared workspace without changing DOM order",
-            Regex(
-                """\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)""",
-                RegexOption.DOT_MATCHES_ALL,
-            ).containsMatchIn(css),
-        )
-        assertFalse("Layout B must never reverse DOM or focus order", "reverse" in css)
         assertEquals(
-            "Only action factories may assign semantic target attributes",
+            "Only the semantic target factory may assign stable keys",
             1,
-            javascript.windowed("button.dataset.stableKey".length).count {
-                it == "button.dataset.stableKey"
+            javascript.windowed("control.dataset.stableKey =".length).count {
+                it == "control.dataset.stableKey ="
             },
+        )
+        assertTrue(
+            "The new screen and layout must render before checkpoint notification",
+            Regex(
+                """applyAutomaticLayoutUpdate\(\);\s*renderCurrent\(\);\s*emitCheckpointChanged\(\);""",
+            ).containsMatchIn(javascript),
         )
     }
 
@@ -506,6 +611,7 @@ class PracticeAssetContractTest {
     private data class ExpectedStep(
         val checkpoint: String,
         val stableKey: String,
+        val role: String,
         val accessibleName: String,
         val nextCheckpoint: String,
     )
