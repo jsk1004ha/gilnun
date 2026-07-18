@@ -69,7 +69,7 @@ data class ServiceContract(
  * Compile-time contracts for the three synthetic public-service practice journeys.
  *
  * Routes end before submission, payment, or any real-world side effect. The only patchable
- * targets are the nine primary progress actions.
+ * targets are the fifteen primary progress actions.
  */
 object ServiceCatalog {
     const val REVISION = "2026-07"
@@ -83,10 +83,18 @@ object ServiceCatalog {
                     listOf(
                         step(
                             pageId = BASIC_PENSION_PAGE_ID,
+                            checkpoint = "pension-service",
+                            narration = "기초연금 신청 연습을 찾아 선택해 주세요.",
+                            stableKey = "pension-service-select",
+                            accessibleName = "기초연금 신청 연습",
+                            nextCheckpoint = "pension-applicant",
+                        ),
+                        step(
+                            pageId = BASIC_PENSION_PAGE_ID,
                             checkpoint = "pension-applicant",
                             narration = "가상 신청자 정보를 확인해 주세요.",
                             stableKey = "pension-applicant-confirm",
-                            accessibleName = "가상 신청자 정보 확인",
+                            accessibleName = "연습 사용자 정보 확인",
                             nextCheckpoint = "pension-method",
                         ),
                         step(
@@ -94,7 +102,16 @@ object ServiceCatalog {
                             checkpoint = "pension-method",
                             narration = "본인이 신청하는 연습 경로를 선택해 주세요.",
                             stableKey = "pension-self-apply",
+                            role = "radio",
                             accessibleName = "본인이 신청해요",
+                            nextCheckpoint = "pension-contact",
+                        ),
+                        step(
+                            pageId = BASIC_PENSION_PAGE_ID,
+                            checkpoint = "pension-contact",
+                            narration = "가상 연락 방법을 확인해 주세요.",
+                            stableKey = "pension-contact-confirm",
+                            accessibleName = "연락 방법 확인",
                             nextCheckpoint = "pension-review",
                         ),
                         step(
@@ -127,9 +144,27 @@ object ServiceCatalog {
                         step(
                             pageId = RESIDENT_RECORD_PAGE_ID,
                             checkpoint = "resident-type",
-                            narration = "연습용 증명서 종류를 선택해 주세요.",
+                            narration = "주민등록표 등본 탭을 선택해 주세요.",
                             stableKey = "resident-copy-select",
+                            role = "tab",
                             accessibleName = "주민등록표 등본",
+                            nextCheckpoint = "resident-address",
+                        ),
+                        step(
+                            pageId = RESIDENT_RECORD_PAGE_ID,
+                            checkpoint = "resident-address",
+                            narration = "가상 주소를 확인해 주세요.",
+                            stableKey = "resident-address-confirm",
+                            accessibleName = "주소 확인",
+                            nextCheckpoint = "resident-issue-type",
+                        ),
+                        step(
+                            pageId = RESIDENT_RECORD_PAGE_ID,
+                            checkpoint = "resident-issue-type",
+                            narration = "모의 발급 형태를 선택해 주세요.",
+                            stableKey = "resident-standard-issue",
+                            role = "radio",
+                            accessibleName = "발급(모의)",
                             nextCheckpoint = "resident-delivery",
                         ),
                         step(
@@ -137,7 +172,8 @@ object ServiceCatalog {
                             checkpoint = "resident-delivery",
                             narration = "연습용 온라인 발급 방법을 선택해 주세요.",
                             stableKey = "resident-online-delivery",
-                            accessibleName = "온라인 발급(연습용)",
+                            role = "combobox",
+                            accessibleName = "온라인발급(본인출력·연습용)",
                             nextCheckpoint = "resident-review",
                             friction =
                                 friction(
@@ -150,9 +186,9 @@ object ServiceCatalog {
                         step(
                             pageId = RESIDENT_RECORD_PAGE_ID,
                             checkpoint = "resident-review",
-                            narration = "가상 등본의 미리보기를 확인해 주세요.",
-                            stableKey = "resident-preview",
-                            accessibleName = "모의 등본 미리보기",
+                            narration = "민원 신청 연습을 마쳐 주세요.",
+                            stableKey = "resident-finish-practice",
+                            accessibleName = "민원 신청 연습 마치기",
                             nextCheckpoint = "resident-complete",
                         ),
                     ),
@@ -169,18 +205,36 @@ object ServiceCatalog {
                     listOf(
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,
+                            checkpoint = "health-service",
+                            narration = "건강검진 대상 조회 연습을 찾아 선택해 주세요.",
+                            stableKey = "health-service-select",
+                            accessibleName = "건강검진 대상 조회 연습",
+                            nextCheckpoint = "health-person",
+                        ),
+                        step(
+                            pageId = HEALTH_SCREENING_PAGE_ID,
                             checkpoint = "health-person",
                             narration = "가상 사용자 정보를 확인해 주세요.",
                             stableKey = "health-person-confirm",
-                            accessibleName = "가상 사용자 정보 확인",
+                            accessibleName = "연습 사용자 정보 확인",
                             nextCheckpoint = "health-year",
                         ),
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,
                             checkpoint = "health-year",
-                            narration = "2026년 조회 기준을 확인해 주세요.",
+                            narration = "2026년 가상 조회 기준을 선택해 주세요.",
                             stableKey = "health-year-2026",
-                            accessibleName = "2026년 조회 기준 확인",
+                            role = "radio",
+                            accessibleName = "2026년(가상)",
+                            nextCheckpoint = "health-kind",
+                        ),
+                        step(
+                            pageId = HEALTH_SCREENING_PAGE_ID,
+                            checkpoint = "health-kind",
+                            narration = "일반건강검진 모의 항목을 선택해 주세요.",
+                            stableKey = "health-general-screening",
+                            role = "radio",
+                            accessibleName = "일반건강검진(모의)",
                             nextCheckpoint = "health-query",
                         ),
                         step(
@@ -243,6 +297,7 @@ object ServiceCatalog {
         checkpoint: String,
         narration: String,
         stableKey: String,
+        role: String = BUTTON_ROLE,
         accessibleName: String,
         nextCheckpoint: String,
         friction: EventContract? = null,
@@ -254,7 +309,7 @@ object ServiceCatalog {
                 EventContract(
                     type = ServiceEventType.ACTION,
                     stableKey = stableKey,
-                    role = BUTTON_ROLE,
+                    role = role,
                     accessibleName = accessibleName,
                     effect = EventEffect.PROGRESS,
                     expectedCheckpoint = nextCheckpoint,
@@ -265,7 +320,7 @@ object ServiceCatalog {
                     pageId = pageId,
                     compatibleRevision = REVISION,
                     stableKey = stableKey,
-                    role = BUTTON_ROLE,
+                    role = role,
                     accessibleName = accessibleName,
                     expectedState = nextCheckpoint,
                 ),
