@@ -1,0 +1,36 @@
+# Android / Gradle
+.gradle/
+/build/
+/app/build/
+local.properties
+captures/
+.idea/
+*.iml
+
+# Signing and generated artifacts
+*.jks
+*.keystore
+signing.env.ps1
+artifacts/*.apk
+artifacts/*.sha256
+outputs/*.apk
+
+# Web
+web/node_modules/
+web/.vinext/
+web/dist/
+web/.wrangler/
+web/.dev.vars
+
+# Runtime and evidence
+.android-bootstrap/
+.omo/evidence/
+.omx/
+work/
+*.log
+*.pid
+gilnun-site-*.tar.gz
+
+# OS
+.DS_Store
+Thumbs.db

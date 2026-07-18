@@ -1,0 +1,287 @@
+<!doctype html>
+<html
+  lang="ko"
+  data-page-id="welfare-basic-class"
+  data-compatible-revision="2026-07"
+>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    >
+    <meta name="referrer" content="no-referrer">
+    <title>길눈 합성 복지 신청 연습</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">본문으로 바로 가기</a>
+
+    <header class="hero">
+      <div class="hero__eyebrow">오프라인 연습 화면 · 실제 신청 아님</div>
+      <div class="hero__row">
+        <div>
+          <p class="service-kicker">합성 시민서비스</p>
+          <h1>스마트폰 기초교육 신청 연습</h1>
+        </div>
+        <span class="layout-badge" id="layout-badge" aria-label="현재 화면 배치"></span>
+      </div>
+      <p class="hero__lead">
+        개인정보를 입력하지 않고, 프로그램 선택부터 신청 내용 확인까지 차근차근 연습합니다.
+      </p>
+      <ul class="safety-list" aria-label="안전한 연습 범위">
+        <li>실제 기관과 무관한 합성 정보</li>
+        <li>최종 제출·결제 없음</li>
+        <li>기기 밖으로 전송하지 않음</li>
+      </ul>
+    </header>
+
+    <main id="main-content" class="workspace">
+      <section class="task-panel" aria-labelledby="task-title">
+        <div class="panel-heading">
+          <div>
+            <p class="section-label">연습 과업</p>
+            <h2 id="task-title">신청 내용 확인 화면까지 이동하기</h2>
+          </div>
+          <span class="synthetic-chip">합성 데이터</span>
+        </div>
+
+        <ol class="stepper" aria-label="신청 연습 진행 단계">
+          <li class="is-current" data-step-indicator="program">
+            <span>1</span> 프로그램 선택
+          </li>
+          <li data-step-indicator="details">
+            <span>2</span> 필수 항목 확인
+          </li>
+          <li data-step-indicator="review">
+            <span>3</span> 신청 내용 확인
+          </li>
+        </ol>
+
+        <form id="welfare-form" autocomplete="off" novalidate>
+          <section class="flow-card" id="step-program" aria-labelledby="program-title">
+            <p class="step-caption">1단계</p>
+            <h3 id="program-title">연습할 프로그램을 골라 주세요</h3>
+            <p class="supporting">어떤 항목을 골라도 실제 신청이나 저장은 일어나지 않습니다.</p>
+
+            <fieldset class="choice-list">
+              <legend class="visually-hidden">연습 프로그램</legend>
+              <label class="choice-card">
+                <input
+                  type="radio"
+                  name="program"
+                  value="basic"
+                  autocomplete="off"
+                  data-gilnun-key="program-basic"
+                  data-checkpoint="program-selection"
+                  data-expected-state="details-check"
+                  role="radio"
+                  aria-label="스마트폰 기초교육"
+                >
+                <span>
+                  <strong>스마트폰 기초교육</strong>
+                  <small>화면 글자와 기본 버튼을 익히는 합성 과정</small>
+                </span>
+              </label>
+              <label class="choice-card">
+                <input
+                  type="radio"
+                  name="program"
+                  value="documents"
+                  autocomplete="off"
+                  data-gilnun-key="program-documents"
+                  data-checkpoint="program-selection"
+                  data-expected-state="details-check"
+                  role="radio"
+                  aria-label="모바일 서류 연습"
+                >
+                <span>
+                  <strong>모바일 서류 연습</strong>
+                  <small>가상의 서류 확인 순서를 연습하는 합성 과정</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="step-actions">
+              <button
+                class="button button--primary"
+                id="program-next"
+                type="button"
+                disabled
+                data-gilnun-key="program-next"
+                data-checkpoint="program-selection"
+                data-expected-state="details-check"
+                role="button"
+                aria-label="필수 항목 확인으로 이동"
+              >
+                필수 항목 확인
+              </button>
+            </div>
+          </section>
+
+          <section class="flow-card" id="step-details" aria-labelledby="details-title" hidden>
+            <p class="step-caption">2단계</p>
+            <h3 id="details-title">연습 범위를 확인해 주세요</h3>
+            <div class="notice-box">
+              <strong>이 화면에서는 다음을 하지 않습니다.</strong>
+              <ul>
+                <li>이름·전화번호·주소 같은 개인정보 입력</li>
+                <li>실제 신청, 동의, 결제 또는 최종 제출</li>
+                <li>외부 사이트 연결</li>
+              </ul>
+            </div>
+
+            <label class="check-card">
+              <input
+                id="safety-check"
+                type="checkbox"
+                autocomplete="off"
+                data-gilnun-key="safety-check"
+                data-checkpoint="details-check"
+                data-expected-state="consent-ready"
+                role="checkbox"
+                aria-label="합성 연습 범위를 확인했습니다"
+              >
+              <span>합성 연습 범위를 확인했습니다.</span>
+            </label>
+
+            <div class="step-actions step-actions--split">
+              <button
+                class="button button--quiet"
+                id="details-back"
+                type="button"
+                data-gilnun-key="details-back"
+                data-checkpoint="details-check"
+                data-expected-state="program-selection"
+                role="button"
+                aria-label="프로그램 선택으로 돌아가기"
+              >
+                이전
+              </button>
+              <button
+                class="button button--primary"
+                id="details-next"
+                type="button"
+                disabled
+                data-gilnun-key="details-next"
+                data-checkpoint="details-check"
+                data-expected-state="consent-ready"
+                role="button"
+                aria-label="선택 내용 요약 보기"
+              >
+                선택 내용 요약 보기
+              </button>
+            </div>
+          </section>
+
+          <section class="flow-card flow-card--review" id="step-review" aria-labelledby="review-title" hidden>
+            <p class="step-caption">3단계</p>
+            <h3 id="review-title">선택 내용을 확인해 주세요</h3>
+            <dl class="summary-list">
+              <div>
+                <dt>연습 프로그램</dt>
+                <dd id="selected-program">스마트폰 기초교육</dd>
+              </div>
+              <div>
+                <dt>개인정보</dt>
+                <dd>입력하지 않음</dd>
+              </div>
+              <div>
+                <dt>다음 화면</dt>
+                <dd>신청 내용 확인 연습</dd>
+              </div>
+            </dl>
+
+            <div class="review-hint">
+              <strong>다음 단계로 가려면</strong>
+              <p>“신청 내용 확인” 버튼을 눌러 주세요. “임시 저장”은 현재 단계에 머뭅니다.</p>
+            </div>
+
+            <div class="review-actions">
+              <button
+                class="button button--secondary"
+                id="save-draft"
+                type="button"
+                data-gilnun-key="save-draft"
+                data-checkpoint="consent-ready"
+                data-expected-state="consent-ready"
+                role="button"
+                aria-label="임시 저장"
+              >
+                임시 저장
+              </button>
+              <button
+                class="button button--primary"
+                id="review-next"
+                type="button"
+                data-gilnun-key="review-next"
+                data-checkpoint="consent-ready"
+                data-expected-state="review-ready"
+                role="button"
+                aria-label="신청 내용 확인"
+              >
+                신청 내용 확인
+              </button>
+            </div>
+          </section>
+
+          <section class="flow-card result-card" id="step-ready" aria-labelledby="ready-title" hidden>
+            <div class="result-mark" aria-hidden="true">✓</div>
+            <p class="step-caption">연습 목표 도착</p>
+            <h3 id="ready-title">신청 내용 확인 화면을 열었습니다</h3>
+            <p>
+              이것은 최종 신청 완료가 아닙니다. 합성 과업의 확인 화면까지 안전하게 이동한 상태입니다.
+            </p>
+            <button
+              class="button button--quiet"
+              id="start-over"
+              type="button"
+              data-gilnun-key="start-over"
+              data-checkpoint="review-ready"
+              data-expected-state="program-selection"
+              role="button"
+              aria-label="연습 처음부터 다시 시작"
+            >
+              처음부터 다시 연습
+            </button>
+          </section>
+        </form>
+
+        <p class="flow-status" id="flow-status" role="status" aria-live="polite">
+          프로그램 하나를 선택해 주세요.
+        </p>
+      </section>
+
+      <aside class="support-panel" aria-labelledby="support-title">
+        <p class="section-label">길눈 안내</p>
+        <h2 id="support-title">막히면 직접 도움을 요청할 수 있어요</h2>
+        <p>
+          길눈은 이 앱이 정한 의미 키만 확인합니다. 입력값, 화면 좌표, 전체 문장은 수집하지 않습니다.
+        </p>
+        <button
+          class="button button--help"
+          id="help-request"
+          type="button"
+          data-gilnun-key="help-request"
+          data-checkpoint="program-selection"
+          data-expected-state="help-requested"
+          role="button"
+          aria-label="도움 요청"
+        >
+          도움 요청
+        </button>
+        <div class="contract-card">
+          <strong>안내 전용 연구 시제품</strong>
+          <p>자동으로 누르거나 제출하지 않습니다. 강조된 버튼도 사용자가 직접 선택합니다.</p>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      <span>page: welfare-basic-class</span>
+      <span>revision: 2026-07</span>
+    </footer>
+  </body>
+</html>
