@@ -1,6 +1,6 @@
 # 길눈 Android APK v0.2.0 검증 요약
 
-생성 시각: 2026-07-19T03:11:58.0155020+09:00
+생성 시각: 2026-07-19T03:33:08.0696224+09:00
 
 ## AUTOMATED PASS
 
@@ -24,5 +24,5 @@
 
 기기가 연결되기 전에는 위 항목을 PASS로 표시하지 않습니다.
 
-APK SHA-256: cea8851b48acfb565057760dc19b9aea2ce4f6d8493a4f740f71d0e73608dd1c
+APK SHA-256: e1b9488b787d4ac22d8c80b9fe80d01a6a77a534f821f6004d222d5b88c30cc1
 APK: outputs/gilnun-mvp.apk
