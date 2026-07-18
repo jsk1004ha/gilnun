@@ -1,67 +1,142 @@
 package com.gilnun.app.data
 
+import com.gilnun.app.catalog.ServiceCatalog
+import com.gilnun.app.catalog.ServiceId
+
 /**
- * Dependency-free, strict JSON codec for the minimal durable demo state.
+ * Dependency-free, strict JSON codec for the service-scoped durable demo state.
  *
- * Decoding is fail closed: malformed JSON, duplicate/unknown fields, unknown schemas, invalid
- * semantic fields, out-of-range help, and contradictory receipts all recover to [DemoState].
- * Raw interaction events have no representation in this schema.
+ * Global envelope corruption fails closed to a complete default. Once the exact V2 service
+ * envelope is established, corruption in one known service resets only that service.
  */
 object DemoStateCodec {
-    const val SCHEMA_VERSION = 1
+    const val SCHEMA_VERSION = 2
     const val MAX_ENCODED_LENGTH = 16_384
 
-    fun encode(state: DemoState): String {
-        val safeState = state.takeIf(::isValidState) ?: DemoState()
-        return buildString {
+    data class DecodeResult(
+        val state: DemoState,
+        val migratedFromV1: Boolean,
+    )
+
+    fun encode(state: DemoState): String =
+        buildString {
             append('{')
             append("\"schemaVersion\":")
             append(SCHEMA_VERSION)
-            append(",\"patch\":")
-            appendPatch(safeState.patch)
-            append(",\"helpLevel\":")
-            append(safeState.helpLevel)
-            append(",\"lastReceipt\":")
-            appendReceipt(safeState.lastReceipt)
-            append('}')
+            append(",\"services\":{")
+            ServiceId.entries.forEachIndexed { index, serviceId ->
+                if (index > 0) append(',')
+                appendJsonString(serviceId.persistedKey)
+                append(':')
+                val progress =
+                    state.services
+                        .getValue(serviceId)
+                        .takeIf { candidate -> isValidProgress(serviceId, candidate) }
+                        ?: ServiceProgress()
+                appendProgress(serviceId, progress)
+            }
+            append("}}")
         }
-    }
 
-    fun decode(json: String?): DemoState = decodeOrDefault(json)
+    fun decode(json: String?): DemoState = decodeWithMetadata(json).state
 
-    fun decodeOrDefault(json: String?): DemoState {
-        if (json.isNullOrBlank() || json.length > MAX_ENCODED_LENGTH) return DemoState()
+    fun decodeOrDefault(json: String?): DemoState = decode(json)
+
+    fun decodeWithMetadata(json: String?): DecodeResult {
+        if (json.isNullOrBlank() || json.length > MAX_ENCODED_LENGTH) {
+            return DecodeResult(DemoState(), migratedFromV1 = false)
+        }
 
         return runCatching {
             val root = JsonParser(json).parseRoot().asObject()
-            root.requireOnlyKeys(TOP_LEVEL_KEYS)
-            if (root.requiredInt("schemaVersion") != SCHEMA_VERSION) {
-                throw InvalidStateJson()
+            when (root.requiredInt("schemaVersion")) {
+                SCHEMA_VERSION ->
+                    DecodeResult(
+                        state = root.toVersionTwoState(),
+                        migratedFromV1 = false,
+                    )
+                LEGACY_SCHEMA_VERSION ->
+                    DecodeResult(
+                        state = root.toMigratedVersionOneState(),
+                        migratedFromV1 = true,
+                    )
+                else -> throw InvalidStateJson()
             }
-
-            val state =
-                DemoState(
-                    patch = root.optionalObject("patch")?.toPatch(),
-                    helpLevel = root.optionalInt("helpLevel") ?: 0,
-                    lastReceipt = root.optionalObject("lastReceipt")?.toReceipt(),
-                )
-            if (!isValidState(state)) throw InvalidStateJson()
-            state
-        }.getOrDefault(DemoState())
+        }.getOrDefault(DecodeResult(DemoState(), migratedFromV1 = false))
     }
 
-    private fun isValidState(state: DemoState): Boolean =
-        state.helpLevel in MIN_HELP_LEVEL..MAX_HELP_LEVEL &&
-            (state.patch == null || state.patch.hasValidSemanticFields()) &&
-            (state.lastReceipt == null || state.lastReceipt.isTruthful())
+    private fun JsonObject.toVersionTwoState(): DemoState {
+        requireExactKeys(V2_TOP_LEVEL_KEYS)
+        if (requiredInt("schemaVersion") != SCHEMA_VERSION) throw InvalidStateJson()
 
-    private fun ActionReceipt.isTruthful(): Boolean {
-        val fullyVerified = guidanceShown && userActionObserved && postconditionVerified
-        return (outcome == ReceiptOutcome.VERIFIED) == fullyVerified
+        val serviceValues = requiredObject("services")
+        serviceValues.requireExactKeys(SERVICE_KEYS)
+        val services =
+            ServiceId.entries.associateWith { serviceId ->
+                runCatching {
+                    serviceValues
+                        .requiredObject(serviceId.persistedKey)
+                        .toServiceProgress(serviceId)
+                }.getOrDefault(ServiceProgress())
+            }
+        return DemoState(services)
+    }
+
+    private fun JsonObject.toMigratedVersionOneState(): DemoState {
+        requireExactKeys(V1_TOP_LEVEL_KEYS)
+        if (requiredInt("schemaVersion") != LEGACY_SCHEMA_VERSION) throw InvalidStateJson()
+
+        requiredNullableObject("patch")
+        requiredNullableObject("lastReceipt")
+        val helpLevel = requiredInt("helpLevel")
+        if (helpLevel !in MIN_HELP_LEVEL..MAX_HELP_LEVEL) throw InvalidStateJson()
+
+        return DemoState(
+            services =
+                ServiceId.entries.associateWith {
+                    ServiceProgress(helpLevel = helpLevel)
+                },
+        )
+    }
+
+    private fun JsonObject.toServiceProgress(serviceId: ServiceId): ServiceProgress {
+        requireExactKeys(SERVICE_PROGRESS_KEYS)
+        val progress =
+            ServiceProgress(
+                helperPatchesByCheckpoint =
+                    requiredObject("helperPatchesByCheckpoint").toHelperPatches(serviceId),
+                helpLevel = requiredInt("helpLevel"),
+                lastReceipt = optionalObject("lastReceipt")?.toReceipt(),
+            )
+        if (!isValidProgress(serviceId, progress)) throw InvalidStateJson()
+        return progress
+    }
+
+    private fun JsonObject.toHelperPatches(serviceId: ServiceId): Map<String, PatchV1> {
+        requireUniqueKeys()
+        if (values.size > MAX_PATCHES_PER_SERVICE) throw InvalidStateJson()
+
+        val knownCheckpoints =
+            ServiceCatalog
+                .require(serviceId)
+                .steps
+                .map { checkpoint -> checkpoint.id }
+                .toSet()
+        if (values.keys.any { checkpoint -> checkpoint !in knownCheckpoints }) {
+            throw InvalidStateJson()
+        }
+
+        return values.mapValues { (checkpoint, value) ->
+            val patch = (value as? JsonObject)?.toPatch() ?: throw InvalidStateJson()
+            if (patch != ServiceCatalog.builtInPatch(serviceId, checkpoint)) {
+                throw InvalidStateJson()
+            }
+            patch
+        }
     }
 
     private fun JsonObject.toPatch(): PatchV1 {
-        requireOnlyKeys(PATCH_KEYS)
+        requireExactKeys(PATCH_KEYS)
         return PatchV1(
             pageId = requiredString("pageId"),
             compatibleRevision = requiredString("compatibleRevision"),
@@ -73,23 +148,74 @@ object DemoStateCodec {
     }
 
     private fun JsonObject.toReceipt(): ActionReceipt {
-        requireOnlyKeys(RECEIPT_KEYS)
+        requireExactKeys(RECEIPT_KEYS)
         val outcome =
             runCatching { ReceiptOutcome.valueOf(requiredString("outcome")) }
+                .getOrElse { throw InvalidStateJson() }
+        val source =
+            runCatching { GuidanceSource.valueOf(requiredString("source")) }
                 .getOrElse { throw InvalidStateJson() }
         return ActionReceipt(
             guidanceShown = requiredBoolean("guidanceShown"),
             userActionObserved = requiredBoolean("userActionObserved"),
             postconditionVerified = requiredBoolean("postconditionVerified"),
             outcome = outcome,
+            source = source,
         )
     }
 
-    private fun StringBuilder.appendPatch(patch: PatchV1?) {
-        if (patch == null) {
-            append("null")
-            return
+    private fun isValidProgress(
+        serviceId: ServiceId,
+        progress: ServiceProgress,
+    ): Boolean =
+        progress.helpLevel in MIN_HELP_LEVEL..MAX_HELP_LEVEL &&
+            progress.helperPatchesByCheckpoint.size <= MAX_PATCHES_PER_SERVICE &&
+            progress.helperPatchesByCheckpoint.all { (checkpoint, patch) ->
+                patch == ServiceCatalog.builtInPatch(serviceId, checkpoint)
+            } &&
+            (
+                progress.lastReceipt == null ||
+                    (
+                        progress.lastReceipt.source != null &&
+                            progress.lastReceipt.isTruthful()
+                    )
+            )
+
+    private fun ActionReceipt.isTruthful(): Boolean {
+        val fullyVerified = guidanceShown && userActionObserved && postconditionVerified
+        return (outcome == ReceiptOutcome.VERIFIED) == fullyVerified
+    }
+
+    private fun StringBuilder.appendProgress(
+        serviceId: ServiceId,
+        progress: ServiceProgress,
+    ) {
+        append('{')
+        append("\"helperPatchesByCheckpoint\":{")
+        val orderedPatches =
+            ServiceCatalog
+                .require(serviceId)
+                .steps
+                .mapNotNull { checkpoint ->
+                    progress.helperPatchesByCheckpoint[checkpoint.id]?.let { patch ->
+                        checkpoint.id to patch
+                    }
+                }
+        orderedPatches.forEachIndexed { index, (checkpoint, patch) ->
+            if (index > 0) append(',')
+            appendJsonString(checkpoint)
+            append(':')
+            appendPatch(patch)
         }
+        append('}')
+        append(",\"helpLevel\":")
+        append(progress.helpLevel)
+        append(",\"lastReceipt\":")
+        appendReceipt(progress.lastReceipt)
+        append('}')
+    }
+
+    private fun StringBuilder.appendPatch(patch: PatchV1) {
         append('{')
         appendJsonEntry("pageId", patch.pageId)
         append(',')
@@ -119,6 +245,8 @@ object DemoStateCodec {
         append(receipt.postconditionVerified)
         append(',')
         appendJsonEntry("outcome", receipt.outcome.name)
+        append(',')
+        appendJsonEntry("source", checkNotNull(receipt.source).name)
         append('}')
     }
 
@@ -154,11 +282,17 @@ object DemoStateCodec {
         append('"')
     }
 
+    private const val LEGACY_SCHEMA_VERSION = 1
     private const val MIN_HELP_LEVEL = 0
     private const val MAX_HELP_LEVEL = 3
+    private const val MAX_PATCHES_PER_SERVICE = 3
 
-    private val TOP_LEVEL_KEYS =
+    private val V2_TOP_LEVEL_KEYS = setOf("schemaVersion", "services")
+    private val V1_TOP_LEVEL_KEYS =
         setOf("schemaVersion", "patch", "helpLevel", "lastReceipt")
+    private val SERVICE_KEYS = ServiceId.entries.map(ServiceId::persistedKey).toSet()
+    private val SERVICE_PROGRESS_KEYS =
+        setOf("helperPatchesByCheckpoint", "helpLevel", "lastReceipt")
     private val PATCH_KEYS =
         setOf(
             "pageId",
@@ -174,6 +308,7 @@ object DemoStateCodec {
             "userActionObserved",
             "postconditionVerified",
             "outcome",
+            "source",
         )
 }
 
@@ -181,9 +316,14 @@ private sealed interface JsonValue
 
 private data class JsonObject(
     val values: Map<String, JsonValue>,
+    val hasDuplicateKeys: Boolean = false,
 ) : JsonValue {
-    fun requireOnlyKeys(allowed: Set<String>) {
-        if (values.keys.any { it !in allowed }) throw InvalidStateJson()
+    fun requireExactKeys(expected: Set<String>) {
+        if (hasDuplicateKeys || values.keys != expected) throw InvalidStateJson()
+    }
+
+    fun requireUniqueKeys() {
+        if (hasDuplicateKeys) throw InvalidStateJson()
     }
 
     fun requiredString(key: String): String =
@@ -195,16 +335,21 @@ private data class JsonObject(
     fun requiredInt(key: String): Int =
         (values[key] as? JsonNumber)?.value?.toIntOrNull() ?: throw InvalidStateJson()
 
-    fun optionalInt(key: String): Int? =
-        when (val value = values[key]) {
-            null -> null
-            is JsonNumber -> value.value.toIntOrNull() ?: throw InvalidStateJson()
+    fun requiredObject(key: String): JsonObject =
+        values[key] as? JsonObject ?: throw InvalidStateJson()
+
+    fun requiredNullableObject(key: String): JsonObject? {
+        if (key !in values) throw InvalidStateJson()
+        return when (val value = values[key]) {
+            JsonNull -> null
+            is JsonObject -> value
             else -> throw InvalidStateJson()
         }
+    }
 
     fun optionalObject(key: String): JsonObject? =
         when (val value = values[key]) {
-            null, JsonNull -> null
+            JsonNull -> null
             is JsonObject -> value
             else -> throw InvalidStateJson()
         }
@@ -267,11 +412,15 @@ private class JsonParser(
         if (consumeIf('}')) return JsonObject(emptyMap())
 
         val values = linkedMapOf<String, JsonValue>()
+        var fieldCount = 0
+        var hasDuplicateKeys = false
         while (true) {
             skipWhitespace()
             if (index >= source.length || source[index] != '"') throw InvalidStateJson()
+            if (fieldCount >= MAX_OBJECT_FIELDS) throw InvalidStateJson()
+            fieldCount += 1
             val key = parseString()
-            if (key in values || values.size >= MAX_OBJECT_FIELDS) throw InvalidStateJson()
+            if (key in values) hasDuplicateKeys = true
             skipWhitespace()
             expect(':')
             skipWhitespace()
@@ -280,7 +429,7 @@ private class JsonParser(
             if (consumeIf('}')) break
             expect(',')
         }
-        return JsonObject(values)
+        return JsonObject(values, hasDuplicateKeys)
     }
 
     private fun parseString(): String {
@@ -358,7 +507,7 @@ private class JsonParser(
     }
 
     companion object {
-        private const val MAX_DEPTH = 4
+        private const val MAX_DEPTH = 6
         private const val MAX_OBJECT_FIELDS = 16
         private val JSON_WHITESPACE = charArrayOf(' ', '\t', '\n', '\r')
     }

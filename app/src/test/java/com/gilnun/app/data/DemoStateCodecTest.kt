@@ -1,118 +1,344 @@
 package com.gilnun.app.data
 
+import com.gilnun.app.catalog.ServiceCatalog
+import com.gilnun.app.catalog.ServiceId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DemoStateCodecTest {
-    private val patch =
-        PatchV1(
-            pageId = "welfare-basic-class",
-            compatibleRevision = "2026-07",
-            stableKey = "review-next",
-            role = "button",
-            accessibleName = "신청 내용 확인",
-            expectedState = "review-ready",
-        )
-    private val receipt =
+    private val verifiedReceipt =
         ActionReceipt(
             guidanceShown = true,
             userActionObserved = true,
             postconditionVerified = true,
             outcome = ReceiptOutcome.VERIFIED,
+            source = GuidanceSource.SAME_DEVICE_HELPER,
         )
 
     @Test
-    fun `minimal state round trips exactly`() {
-        val state = DemoState(patch = patch, helpLevel = 2, lastReceipt = receipt)
-
-        assertEquals(state, DemoStateCodec.decode(DemoStateCodec.encode(state)))
-    }
-
-    @Test
-    fun `encoded state contains no raw events or prohibited targeting data`() {
-        val encoded = DemoStateCodec.encode(DemoState(patch, 2, receipt))
-
-        assertTrue(encoded.contains("\"schemaVersion\":1"))
-        assertTrue(encoded.contains("\"accessibleName\":\"신청 내용 확인\""))
-        assertFalse(encoded.contains("monotonicMs"))
-        assertFalse(encoded.contains("checkpoint"))
-        assertFalse(encoded.contains("selector"))
-        assertFalse(encoded.contains("coordinate"))
-        assertFalse(encoded.contains("url", ignoreCase = true))
-    }
-
-    @Test
-    fun `null blank truncated and oversized json recover to default`() {
-        val default = DemoState()
-
-        assertEquals(default, DemoStateCodec.decode(null))
-        assertEquals(default, DemoStateCodec.decode(" "))
-        assertEquals(default, DemoStateCodec.decode("""{"schemaVersion":1,"patch":{"""))
-        assertEquals(default, DemoStateCodec.decode("x".repeat(DemoStateCodec.MAX_ENCODED_LENGTH + 1)))
-    }
-
-    @Test
-    fun `unknown schema and fields recover to default`() {
-        assertEquals(
-            DemoState(),
-            DemoStateCodec.decode(
-                """{"schemaVersion":999,"patch":null,"helpLevel":0,"lastReceipt":null}""",
-            ),
-        )
-        assertEquals(
-            DemoState(),
-            DemoStateCodec.decode(
-                """{"schemaVersion":1,"patch":null,"helpLevel":0,"lastReceipt":null,"rawEvents":[]}""",
-            ),
-        )
-    }
-
-    @Test
-    fun `missing oversized and duplicate semantic fields recover to default`() {
-        val valid = DemoStateCodec.encode(DemoState(patch = patch))
-        val missingStableKey = valid.replace(""""stableKey":"review-next",""", "")
-        val oversized = valid.replace("review-next", "x".repeat(ModelLimits.MAX_SEMANTIC_FIELD_LENGTH + 1))
-        val duplicate =
-            valid.replace(
-                """"stableKey":"review-next"""",
-                """"stableKey":"review-next","stableKey":"review-next"""",
+    fun `version two state round trips service patches help and receipt source`() {
+        val state =
+            stateWith(
+                ServiceId.BASIC_PENSION to
+                    ServiceProgress(
+                        helperPatchesByCheckpoint =
+                            mapOf(
+                                "pension-applicant" to
+                                    builtInPatch(
+                                        ServiceId.BASIC_PENSION,
+                                        "pension-applicant",
+                                    ),
+                            ),
+                        helpLevel = 1,
+                        lastReceipt = verifiedReceipt,
+                    ),
+                ServiceId.RESIDENT_RECORD to
+                    ServiceProgress(
+                        helperPatchesByCheckpoint =
+                            mapOf(
+                                "resident-type" to
+                                    builtInPatch(ServiceId.RESIDENT_RECORD, "resident-type"),
+                                "resident-review" to
+                                    builtInPatch(ServiceId.RESIDENT_RECORD, "resident-review"),
+                            ),
+                        helpLevel = 2,
+                        lastReceipt = verifiedReceipt.copy(source = GuidanceSource.PREVERIFIED),
+                    ),
+                ServiceId.HEALTH_SCREENING to ServiceProgress(helpLevel = 0),
             )
 
-        assertEquals(DemoState(), DemoStateCodec.decode(missingStableKey))
-        assertEquals(DemoState(), DemoStateCodec.decode(oversized))
-        assertEquals(DemoState(), DemoStateCodec.decode(duplicate))
+        val encoded = DemoStateCodec.encode(state)
+
+        assertTrue(encoded.contains("\"schemaVersion\":2"))
+        assertTrue(encoded.contains("\"source\":\"SAME_DEVICE_HELPER\""))
+        assertEquals(state, DemoStateCodec.decode(encoded))
     }
 
     @Test
-    fun `out of range help and contradictory receipts recover to default`() {
-        assertEquals(
-            DemoState(),
-            DemoStateCodec.decode(
-                """{"schemaVersion":1,"patch":null,"helpLevel":4,"lastReceipt":null}""",
-            ),
-        )
-        assertEquals(
-            DemoState(),
-            DemoStateCodec.decode(
-                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":{"guidanceShown":true,"userActionObserved":true,"postconditionVerified":false,"outcome":"VERIFIED"}}""",
-            ),
-        )
+    fun `default state contains exactly all three services at help level three`() {
+        val state = DemoStateCodec.decode(null)
+
+        assertEquals(ServiceId.entries.toSet(), state.services.keys)
+        state.services.values.forEach { progress ->
+            assertEquals(3, progress.helpLevel)
+            assertTrue(progress.helperPatchesByCheckpoint.isEmpty())
+            assertEquals(null, progress.lastReceipt)
+        }
     }
 
     @Test
-    fun `escaped strings decode and invalid in-memory state encodes as default`() {
+    fun `encoded state contains only reviewed durable guidance data`() {
         val encoded =
             DemoStateCodec.encode(
-                DemoState(
-                    patch = patch.copy(accessibleName = "신청 \"내용\" 확인"),
-                    helpLevel = 1,
+                stateWith(
+                    ServiceId.BASIC_PENSION to
+                        ServiceProgress(
+                            helperPatchesByCheckpoint =
+                                mapOf(
+                                    "pension-review" to
+                                        builtInPatch(ServiceId.BASIC_PENSION, "pension-review"),
+                                ),
+                            helpLevel = 2,
+                            lastReceipt = verifiedReceipt,
+                        ),
                 ),
             )
-        assertEquals("신청 \"내용\" 확인", DemoStateCodec.decode(encoded).patch?.accessibleName)
 
-        val safeDefault = DemoStateCodec.decode(DemoStateCodec.encode(DemoState(helpLevel = 99)))
-        assertEquals(DemoState(), safeDefault)
+        assertFalse(encoded.contains("monotonicMs"))
+        assertFalse(encoded.contains("rawEvents"))
+        assertFalse(encoded.contains("selectedService"))
+        assertFalse(encoded.contains("formValue"))
+        assertFalse(encoded.contains("domValue"))
+        assertFalse(encoded.contains("tts", ignoreCase = true))
+        assertFalse(encoded.contains("screenState"))
+        assertFalse(encoded.contains("url", ignoreCase = true))
+        assertFalse(encoded.contains('['))
     }
+
+    @Test
+    fun `valid version one state migrates help to every service and discards patch and receipt`() {
+        val legacy =
+            """
+            {
+              "schemaVersion":1,
+              "patch":{
+                "pageId":"welfare-basic-class",
+                "compatibleRevision":"2026-07",
+                "stableKey":"review-next",
+                "role":"button",
+                "accessibleName":"신청 내용 확인",
+                "expectedState":"review-ready"
+              },
+              "helpLevel":2,
+              "lastReceipt":{
+                "guidanceShown":true,
+                "userActionObserved":true,
+                "postconditionVerified":true,
+                "outcome":"VERIFIED"
+              }
+            }
+            """.trimIndent()
+
+        val result = DemoStateCodec.decodeWithMetadata(legacy)
+
+        assertTrue(result.migratedFromV1)
+        assertEquals(setOf(2), result.state.services.values.map(ServiceProgress::helpLevel).toSet())
+        result.state.services.values.forEach { progress ->
+            assertTrue(progress.helperPatchesByCheckpoint.isEmpty())
+            assertEquals(null, progress.lastReceipt)
+        }
+    }
+
+    @Test
+    fun `decode metadata distinguishes migrated version one from version two and invalid data`() {
+        val versionTwo = DemoStateCodec.decodeWithMetadata(DemoStateCodec.encode(DemoState()))
+        val invalid = DemoStateCodec.decodeWithMetadata("""{"schemaVersion":1}""")
+
+        assertFalse(versionTwo.migratedFromV1)
+        assertFalse(invalid.migratedFromV1)
+        assertEquals(DemoState(), invalid.state)
+    }
+
+    @Test
+    fun `version one requires exact shape and an integer help level in range`() {
+        val invalidStates =
+            listOf(
+                """{"schemaVersion":1,"patch":null,"helpLevel":4,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1.0,"lastReceipt":null}""",
+                """{"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":null,"extra":true}""",
+                """{"schemaVersion":1,"schemaVersion":1,"patch":null,"helpLevel":1,"lastReceipt":null}""",
+            )
+
+        invalidStates.forEach { encoded ->
+            assertEquals(DemoState(), DemoStateCodec.decode(encoded))
+            assertFalse(DemoStateCodec.decodeWithMetadata(encoded).migratedFromV1)
+        }
+    }
+
+    @Test
+    fun `invalid known service resets only that service`() {
+        val valid =
+            DemoStateCodec.encode(
+                stateWith(
+                    ServiceId.BASIC_PENSION to ServiceProgress(helpLevel = 0),
+                    ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+                    ServiceId.HEALTH_SCREENING to ServiceProgress(helpLevel = 2),
+                ),
+            )
+        val invalidBasic = valid.replace("\"helpLevel\":0", "\"helpLevel\":9")
+        val decoded = DemoStateCodec.decode(invalidBasic)
+
+        assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+        assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+        assertEquals(2, decoded.services.getValue(ServiceId.HEALTH_SCREENING).helpLevel)
+    }
+
+    @Test
+    fun `unknown and duplicate fields inside one service are isolated to that service`() {
+        val valid =
+            DemoStateCodec.encode(
+                stateWith(
+                    ServiceId.BASIC_PENSION to ServiceProgress(helpLevel = 0),
+                    ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+                    ServiceId.HEALTH_SCREENING to ServiceProgress(helpLevel = 2),
+                ),
+            )
+        val corruptions =
+            listOf(
+                valid.replace("\"helpLevel\":0", "\"helpLevel\":0,\"extra\":true"),
+                valid.replace("\"helpLevel\":0", "\"helpLevel\":0,\"helpLevel\":0"),
+            )
+
+        corruptions.forEach { encoded ->
+            val decoded = DemoStateCodec.decode(encoded)
+            assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+            assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+            assertEquals(2, decoded.services.getValue(ServiceId.HEALTH_SCREENING).helpLevel)
+        }
+    }
+
+    @Test
+    fun `global schema syntax size and service key corruption recover to safe default`() {
+        val valid = DemoStateCodec.encode(DemoState())
+        val invalidStates =
+            listOf(
+                valid.replace("\"schemaVersion\":2", "\"schemaVersion\":99"),
+                valid.replace(
+                    "\"schemaVersion\":2",
+                    "\"schemaVersion\":2,\"schemaVersion\":2",
+                ),
+                valid.dropLast(1) + ",\"extra\":true}",
+                valid.replace("\"services\":{", "\"services\":{\"unknown-service\":{},"),
+                valid.replace("\"resident-record\":", "\"basic-pension\":"),
+                """{"schemaVersion":2,"services":[]}""",
+                """{"schemaVersion":2,"services":{""",
+                "x".repeat(DemoStateCodec.MAX_ENCODED_LENGTH + 1),
+            )
+
+        invalidStates.forEach { encoded ->
+            assertEquals(DemoState(), DemoStateCodec.decode(encoded))
+        }
+    }
+
+    @Test
+    fun `cross service built in patch resets only the owning service slot`() {
+        val basicPatch = builtInPatch(ServiceId.BASIC_PENSION, "pension-applicant")
+        val residentPatch = builtInPatch(ServiceId.RESIDENT_RECORD, "resident-type")
+        val valid =
+            DemoStateCodec.encode(
+                stateWith(
+                    ServiceId.BASIC_PENSION to
+                        ServiceProgress(
+                            helperPatchesByCheckpoint =
+                                mapOf("pension-applicant" to basicPatch),
+                            helpLevel = 0,
+                        ),
+                    ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+                ),
+            )
+        val crossService =
+            valid
+                .replace(basicPatch.pageId, residentPatch.pageId)
+                .replace(basicPatch.stableKey, residentPatch.stableKey)
+                .replace(basicPatch.accessibleName, residentPatch.accessibleName)
+                .replace(basicPatch.expectedState, residentPatch.expectedState)
+
+        val decoded = DemoStateCodec.decode(crossService)
+
+        assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+        assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+    }
+
+    @Test
+    fun `unknown and more than three checkpoint patches reset only that service`() {
+        val patch = builtInPatch(ServiceId.BASIC_PENSION, "pension-applicant")
+        val valid =
+            DemoStateCodec.encode(
+                stateWith(
+                    ServiceId.BASIC_PENSION to
+                        ServiceProgress(
+                            helperPatchesByCheckpoint =
+                                mapOf("pension-applicant" to patch),
+                            helpLevel = 0,
+                        ),
+                    ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+                ),
+            )
+        val unknownCheckpoint =
+            valid.replace("\"pension-applicant\":", "\"unknown-checkpoint\":")
+        val fourPatches =
+            valid.replace(
+                "\"pension-applicant\":${patchJson(patch)}",
+                listOf("one", "two", "three", "four")
+                    .joinToString(prefix = "", separator = ",") { checkpoint ->
+                        "\"$checkpoint\":${patchJson(patch)}"
+                    },
+            )
+
+        listOf(unknownCheckpoint, fourPatches).forEach { encoded ->
+            val decoded = DemoStateCodec.decode(encoded)
+            assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+            assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+        }
+    }
+
+    @Test
+    fun `contradictory receipt and unknown source reset only that service`() {
+        val valid =
+            DemoStateCodec.encode(
+                stateWith(
+                    ServiceId.BASIC_PENSION to
+                        ServiceProgress(helpLevel = 0, lastReceipt = verifiedReceipt),
+                    ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+                ),
+            )
+        val corruptions =
+            listOf(
+                valid.replace(
+                    "\"postconditionVerified\":true",
+                    "\"postconditionVerified\":false",
+                ),
+                valid.replace("SAME_DEVICE_HELPER", "REMOTE_HELPER"),
+            )
+
+        corruptions.forEach { encoded ->
+            val decoded = DemoStateCodec.decode(encoded)
+            assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+            assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+        }
+    }
+
+    @Test
+    fun `invalid in memory service encodes as one safe service default`() {
+        val state =
+            stateWith(
+                ServiceId.BASIC_PENSION to ServiceProgress(helpLevel = 99),
+                ServiceId.RESIDENT_RECORD to ServiceProgress(helpLevel = 1),
+            )
+
+        val decoded = DemoStateCodec.decode(DemoStateCodec.encode(state))
+
+        assertEquals(ServiceProgress(), decoded.services.getValue(ServiceId.BASIC_PENSION))
+        assertEquals(1, decoded.services.getValue(ServiceId.RESIDENT_RECORD).helpLevel)
+    }
+
+    private fun builtInPatch(
+        serviceId: ServiceId,
+        checkpoint: String,
+    ): PatchV1 = checkNotNull(ServiceCatalog.builtInPatch(serviceId, checkpoint))
+
+    private fun stateWith(
+        vararg updates: Pair<ServiceId, ServiceProgress>,
+    ): DemoState {
+        val services = DemoState().services.toMutableMap()
+        updates.forEach { (serviceId, progress) -> services[serviceId] = progress }
+        return DemoState(services = services)
+    }
+
+    private fun patchJson(patch: PatchV1): String =
+        """
+        {"pageId":"${patch.pageId}","compatibleRevision":"${patch.compatibleRevision}","stableKey":"${patch.stableKey}","role":"${patch.role}","accessibleName":"${patch.accessibleName}","expectedState":"${patch.expectedState}"}
+        """.trimIndent()
 }

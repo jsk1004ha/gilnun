@@ -216,6 +216,15 @@ object ServiceCatalog {
 
     fun findByPageId(pageId: String): ServiceContract? = byPageId[pageId]
 
+    fun builtInPatch(
+        serviceId: ServiceId,
+        checkpoint: String,
+    ): PatchV1? =
+        find(serviceId)
+            ?.steps
+            ?.singleOrNull { it.id == checkpoint }
+            ?.patch
+
     private fun service(
         id: ServiceId,
         pageId: String,
