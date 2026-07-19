@@ -88,6 +88,13 @@ object ServiceCatalog {
                             stableKey = "pension-service-select",
                             accessibleName = "기초연금 신청 연습",
                             nextCheckpoint = "pension-applicant",
+                            friction =
+                                friction(
+                                    checkpoint = "pension-service",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "pension-service-misstep",
+                                    accessibleName = "복지서비스 선택 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = BASIC_PENSION_PAGE_ID,
@@ -96,6 +103,13 @@ object ServiceCatalog {
                             stableKey = "pension-applicant-confirm",
                             accessibleName = "연습 사용자 정보 확인",
                             nextCheckpoint = "pension-method",
+                            friction =
+                                friction(
+                                    checkpoint = "pension-applicant",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "pension-applicant-misstep",
+                                    accessibleName = "신청인 정보 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = BASIC_PENSION_PAGE_ID,
@@ -105,6 +119,13 @@ object ServiceCatalog {
                             role = "radio",
                             accessibleName = "본인이 신청해요",
                             nextCheckpoint = "pension-contact",
+                            friction =
+                                friction(
+                                    checkpoint = "pension-method",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "pension-method-misstep",
+                                    accessibleName = "신청 관계 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = BASIC_PENSION_PAGE_ID,
@@ -113,6 +134,13 @@ object ServiceCatalog {
                             stableKey = "pension-contact-confirm",
                             accessibleName = "연락 방법 확인",
                             nextCheckpoint = "pension-review",
+                            friction =
+                                friction(
+                                    checkpoint = "pension-contact",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "pension-contact-misstep",
+                                    accessibleName = "연락 방법 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = BASIC_PENSION_PAGE_ID,
@@ -149,6 +177,13 @@ object ServiceCatalog {
                             role = "tab",
                             accessibleName = "주민등록표 등본",
                             nextCheckpoint = "resident-address",
+                            friction =
+                                friction(
+                                    checkpoint = "resident-type",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "resident-type-misstep",
+                                    accessibleName = "문서 종류 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = RESIDENT_RECORD_PAGE_ID,
@@ -157,6 +192,13 @@ object ServiceCatalog {
                             stableKey = "resident-address-confirm",
                             accessibleName = "주소 확인",
                             nextCheckpoint = "resident-issue-type",
+                            friction =
+                                friction(
+                                    checkpoint = "resident-address",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "resident-address-misstep",
+                                    accessibleName = "행정구역 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = RESIDENT_RECORD_PAGE_ID,
@@ -166,6 +208,13 @@ object ServiceCatalog {
                             role = "radio",
                             accessibleName = "발급(모의)",
                             nextCheckpoint = "resident-delivery",
+                            friction =
+                                friction(
+                                    checkpoint = "resident-issue-type",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "resident-issue-misstep",
+                                    accessibleName = "발급 형태 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = RESIDENT_RECORD_PAGE_ID,
@@ -190,6 +239,13 @@ object ServiceCatalog {
                             stableKey = "resident-finish-practice",
                             accessibleName = "민원 신청 연습 마치기",
                             nextCheckpoint = "resident-complete",
+                            friction =
+                                friction(
+                                    checkpoint = "resident-review",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "resident-review-misstep",
+                                    accessibleName = "민원 내용 다시 확인",
+                                ),
                         ),
                     ),
                 completion =
@@ -210,6 +266,13 @@ object ServiceCatalog {
                             stableKey = "health-service-select",
                             accessibleName = "건강검진 대상 조회 연습",
                             nextCheckpoint = "health-person",
+                            friction =
+                                friction(
+                                    checkpoint = "health-service",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "health-service-misstep",
+                                    accessibleName = "건강서비스 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,
@@ -218,6 +281,13 @@ object ServiceCatalog {
                             stableKey = "health-person-confirm",
                             accessibleName = "연습 사용자 정보 확인",
                             nextCheckpoint = "health-year",
+                            friction =
+                                friction(
+                                    checkpoint = "health-person",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "health-person-misstep",
+                                    accessibleName = "조회 대상 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,
@@ -227,6 +297,13 @@ object ServiceCatalog {
                             role = "radio",
                             accessibleName = "2026년(가상)",
                             nextCheckpoint = "health-kind",
+                            friction =
+                                friction(
+                                    checkpoint = "health-year",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "health-year-misstep",
+                                    accessibleName = "조회 연도 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,
@@ -236,6 +313,13 @@ object ServiceCatalog {
                             role = "radio",
                             accessibleName = "일반건강검진(모의)",
                             nextCheckpoint = "health-query",
+                            friction =
+                                friction(
+                                    checkpoint = "health-kind",
+                                    type = ServiceEventType.ACTION,
+                                    stableKey = "health-kind-misstep",
+                                    accessibleName = "검진 종류 다시 확인",
+                                ),
                         ),
                         step(
                             pageId = HEALTH_SCREENING_PAGE_ID,

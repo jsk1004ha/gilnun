@@ -41,7 +41,8 @@ body {
   color: var(--navy);
   font-size: 20px;
   line-height: 1.55;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: keep-all;
 }
 
 button,
@@ -58,7 +59,7 @@ h3 {
   color: var(--navy);
   font-size: 30px;
   line-height: 1.25;
-  letter-spacing: -0.025em;
+  letter-spacing: normal;
 }
 
 p,
@@ -338,6 +339,21 @@ h4 {
   color: var(--ink-muted);
   font-size: 20px;
   font-weight: 700;
+  overflow-wrap: break-word;
+  word-break: keep-all;
+}
+
+.progress-index {
+  display: none;
+}
+
+.progress-label,
+.section-state {
+  min-width: 0;
+}
+
+.section-index + .section-state {
+  margin-left: 6px;
 }
 
 .progress-list li[aria-current="step"] {
@@ -444,6 +460,117 @@ h4 {
 
 .choice-board h3 {
   font-size: 28px;
+}
+
+.scenario-card {
+  min-width: 0;
+  margin-top: 16px;
+  padding: 16px;
+  border: 2px solid var(--teal);
+  border-left-width: 8px;
+  border-radius: 14px;
+  background: var(--yellow-soft);
+}
+
+.scenario-card__summary {
+  margin: 6px 0 0;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.scenario-fields {
+  display: grid;
+  min-width: 0;
+  margin-top: 14px;
+  gap: 12px;
+}
+
+.scenario-field {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+fieldset.scenario-field {
+  min-inline-size: 0;
+}
+
+.scenario-field__label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.scenario-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--navy);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.scenario-radio-group {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 8px;
+}
+
+.scenario-radio,
+.scenario-check {
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: var(--cloud);
+  color: var(--navy);
+  font-weight: 800;
+  align-items: center;
+  gap: 10px;
+}
+
+.scenario-radio input,
+.scenario-check input {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  accent-color: var(--teal);
+}
+
+.scenario-field__feedback {
+  margin: 8px 0 0;
+  color: var(--ink-muted);
+}
+
+.scenario-field.is-correct {
+  border-color: var(--teal);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+
+.scenario-field.is-correct .scenario-field__feedback {
+  color: var(--teal);
+  font-weight: 800;
+}
+
+.scenario-field.is-error {
+  border-color: var(--red);
+}
+
+.scenario-field.is-error .scenario-field__feedback {
+  color: #A22C2C;
+  font-weight: 800;
 }
 
 .choice-row {
@@ -903,7 +1030,7 @@ h4 {
 }
 
 .layout-b .progress-list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
 }
 
 .layout-b .step-groups {
@@ -963,6 +1090,72 @@ h4 {
   width: 100%;
 }
 
+@media (max-width: 56rem) {
+  .service-workspace,
+  .layout-b .service-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "rail"
+      "content";
+  }
+
+  .layout-b .side-menu {
+    display: block;
+  }
+
+  .progress-list,
+  .layout-b .progress-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin-top: 8px;
+    gap: 8px;
+  }
+
+  .resident-document-tabs,
+  .layout-b .resident-form-section .resident-document-tabs {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  }
+
+  .progress-list li,
+  .layout-b .progress-list li {
+    padding: 8px 4px;
+    text-align: center;
+  }
+
+  .progress-index {
+    display: block;
+  }
+
+  .progress-label {
+    display: none;
+  }
+
+  .side-menu > .inert-decoy {
+    display: none;
+  }
+
+  .service-form-section:not(.is-current),
+  .resident-form-section:not(.is-current) {
+    padding: 14px 16px;
+  }
+
+  .service-form-section:not(.is-current) .service-form-section__header,
+  .resident-form-section:not(.is-current) .service-form-section__header {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .service-form-section:not(.is-current) .section-state,
+  .resident-form-section:not(.is-current) .section-state {
+    display: none;
+  }
+
+  .service-form-section:not(.is-current) > :not(.service-form-section__header),
+  .resident-form-section:not(.is-current) > :not(.service-form-section__header) {
+    display: none;
+  }
+}
+
 @media (max-width: 40rem) {
   .semantic-promise,
   .portal-header__inner,
@@ -976,10 +1169,60 @@ h4 {
 
   .portal-header__inner {
     flex-direction: column;
+    padding-top: 16px;
+    padding-bottom: 12px;
+    gap: 8px;
+  }
+
+  .service-description {
+    margin-top: 6px;
   }
 
   .institution-badge {
     align-self: flex-start;
+    padding: 4px 8px;
+  }
+
+  .semantic-promise {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .portal-nav {
+    display: grid;
+    padding-bottom: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .portal-nav span {
+    padding: 6px 8px;
+    text-align: center;
+  }
+
+  .portal-breadcrumb {
+    display: none;
+  }
+
+  .portal-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .portal-tab {
+    min-width: 0;
+    padding: 8px 4px;
+    text-align: center;
+  }
+
+  .practice-main {
+    padding-top: 12px;
+    gap: 12px;
+  }
+
+  .notice-board {
+    padding: 10px 12px;
   }
 
   .service-workspace {
@@ -992,27 +1235,26 @@ h4 {
   .layout-b .service-workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "content"
-      "rail";
+      "rail"
+      "content";
   }
 
   .progress-list {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .layout-b .side-menu {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    display: block;
+    padding: 12px;
   }
 
   .layout-b .side-menu .panel-label,
   .layout-b .side-menu .progress-list {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .layout-b .progress-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .layout-b .progress-list li {
@@ -1020,13 +1262,14 @@ h4 {
   }
 
   .layout-b .step-groups {
-    padding-top: 12px;
+    padding-top: 8px;
     border-top: 8px solid var(--yellow);
   }
 
   .read-only-choice-row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+    padding: 10px 12px;
+    grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
+    gap: 8px;
   }
 
   .resident-application-shell,
@@ -1053,6 +1296,86 @@ h4 {
 
   .action-button {
     width: 100%;
+  }
+
+  .practice-card {
+    padding: 16px;
+  }
+
+  .pension-benefit-card,
+  .health-status-card {
+    display: none;
+  }
+
+  .pension-benefit-layout,
+  .health-dashboard,
+  .resident-application-shell {
+    margin-top: 12px;
+    gap: 12px;
+  }
+
+  .service-section-stack,
+  .resident-application-form {
+    gap: 10px;
+  }
+
+  .service-form-section,
+  .resident-form-section {
+    padding: 14px;
+  }
+
+  .service-form-section:not(.is-current),
+  .resident-form-section:not(.is-current) {
+    padding: 10px 12px;
+  }
+
+  .service-form-section__header {
+    gap: 6px;
+  }
+
+  .service-form-section__header h3 {
+    font-size: 24px;
+  }
+
+  .grouped-summary,
+  .choice-board,
+  .step-notice,
+  .document-preview,
+  .mock-result,
+  .completion-summary,
+  .service-form-section .grouped-summary,
+  .resident-form-section .grouped-summary,
+  .service-form-section .choice-board {
+    margin-top: 10px;
+  }
+
+  .group-title,
+  .choice-board,
+  .step-notice {
+    padding: 10px 12px;
+  }
+
+  .service-form-section.is-current > .grouped-summary,
+  .resident-form-section.is-current > .grouped-summary {
+    display: none;
+  }
+
+  .scenario-card {
+    margin-top: 10px;
+    padding: 12px;
+  }
+
+  .scenario-fields {
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  .scenario-field {
+    padding: 10px;
+  }
+
+  .scenario-radio-group {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
   }
 }
 

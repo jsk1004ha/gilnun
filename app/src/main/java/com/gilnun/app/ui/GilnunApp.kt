@@ -1,10 +1,20 @@
 package com.gilnun.app.ui
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import android.animation.ValueAnimator
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,9 +60,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -105,6 +121,8 @@ fun GilnunApp(viewModel: GilnunViewModel) {
         // WebView would restart the local practice document at checkpoint one.
         PracticeScreen(
             state = state,
+            accessibilityHidden =
+                state.screen != GilnunScreen.PRACTICE || state.helpPromptVisible,
             onHome = viewModel::goHome,
             onRead = viewModel::readGuidance,
             onHelp = viewModel::requestHelp,
@@ -151,9 +169,20 @@ private fun StartupScreen(onSkip: () -> Unit) {
         )
     val logoScale by
         animateFloatAsState(
-            targetValue = if (entered) 1f else 0.82f,
+            targetValue = if (entered) 1f else 0.95f,
             animationSpec = tween(durationMillis = 440),
             label = "startup logo scale",
+        )
+    val contentAlpha by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0f,
+            animationSpec =
+                tween(
+                    durationMillis = 280,
+                    delayMillis = 120,
+                    easing = FastOutSlowInEasing,
+                ),
+            label = "startup content alpha",
         )
 
     Surface(
@@ -165,25 +194,33 @@ private fun StartupScreen(onSkip: () -> Unit) {
             modifier =
                 Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.logo_gilnun),
-                contentDescription = "길눈",
+            Surface(
                 modifier =
                     Modifier
                         .size(168.dp)
                         .scale(logoScale)
                         .alpha(logoAlpha),
-            )
+                color = Color.White,
+                shape = RoundedCornerShape(38.dp),
+                shadowElevation = 8.dp,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.logo_gilnun),
+                    contentDescription = "길눈",
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Spacer(Modifier.height(24.dp))
             Text(
                 text = "한 번 찾은 길은,\n모두의 길이 됩니다.",
                 style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.alpha(logoAlpha),
+                modifier = Modifier.alpha(contentAlpha),
             )
             Spacer(Modifier.height(28.dp))
             LinearProgressIndicator(
@@ -191,6 +228,7 @@ private fun StartupScreen(onSkip: () -> Unit) {
                     Modifier
                         .fillMaxWidth()
                         .height(6.dp)
+                        .alpha(contentAlpha)
                         .clip(CircleShape),
                 color = GilnunYellow,
                 trackColor = Color.White.copy(alpha = 0.25f),
@@ -206,6 +244,7 @@ private fun StartupScreen(onSkip: () -> Unit) {
                     Modifier
                         .fillMaxWidth()
                         .padding(top = 20.dp)
+                        .alpha(contentAlpha)
                         .defaultMinSize(minHeight = 56.dp),
             ) {
                 Text("바로 시작하기")
@@ -216,6 +255,9 @@ private fun StartupScreen(onSkip: () -> Unit) {
 
 @Composable
 private fun HomeScreen(onSelectService: (ServiceId) -> Unit) {
+    var entered by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -230,24 +272,72 @@ private fun HomeScreen(onSelectService: (ServiceId) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             item {
-                BrandHeader()
+                HomeEntrance(
+                    entered = entered,
+                    order = 0,
+                ) {
+                    BrandHeader()
+                }
             }
             item {
-                ValueProposition()
+                HomeEntrance(
+                    entered = entered,
+                    order = 1,
+                ) {
+                    ValueProposition()
+                }
             }
             item {
-                PracticeBanner()
+                HomeEntrance(
+                    entered = entered,
+                    order = 2,
+                ) {
+                    PracticeBanner()
+                }
             }
-            ServiceId.entries.forEach { serviceId ->
+            ServiceId.entries.forEachIndexed { index, serviceId ->
                 item(key = serviceId.persistedKey) {
                     ServiceCard(
                         serviceId = serviceId,
+                        entranceEntered = entered,
+                        entranceOrder = index + 3,
                         onClick = { onSelectService(serviceId) },
                     )
                 }
             }
             item { Spacer(Modifier.height(8.dp)) }
         }
+    }
+}
+
+@Composable
+private fun HomeEntrance(
+    entered: Boolean,
+    order: Int,
+    content: @Composable () -> Unit,
+) {
+    val progress by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0f,
+            animationSpec =
+                tween(
+                    durationMillis = 260,
+                    delayMillis = order * 45,
+                    easing = FastOutSlowInEasing,
+                ),
+            label = "home entrance $order",
+        )
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = progress
+                    translationY = (1f - progress) * 14.dp.toPx()
+                },
+    ) {
+        content()
     }
 }
 
@@ -331,7 +421,7 @@ private fun BrandHeader() {
     ) {
         Image(
             painter = painterResource(R.drawable.logo_gilnun),
-            contentDescription = "길눈 로고",
+            contentDescription = null,
             modifier = Modifier.size(92.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -352,59 +442,85 @@ private fun BrandHeader() {
 @Composable
 private fun ServiceCard(
     serviceId: ServiceId,
+    entranceEntered: Boolean,
+    entranceOrder: Int,
     onClick: () -> Unit,
 ) {
-    Card(
-        onClick = onClick,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 128.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = Color.White,
-                contentColor = GilnunNavy,
-            ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by
+        animateFloatAsState(
+            targetValue = if (isPressed) 0.985f else 1f,
+            animationSpec =
+                tween(
+                    durationMillis = if (isPressed) 90 else 160,
+                    easing = FastOutSlowInEasing,
+                ),
+            label = "${serviceId.persistedKey} press",
+        )
+
+    HomeEntrance(
+        entered = entranceEntered,
+        order = entranceOrder,
     ) {
-        Row(
+        Card(
+            onClick = onClick,
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    .heightIn(min = 128.dp)
+                    .scale(cardScale),
+            shape = RoundedCornerShape(22.dp),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = Color.White,
+                    contentColor = GilnunNavy,
+                ),
+            elevation =
+                CardDefaults.cardElevation(
+                    defaultElevation = 3.dp,
+                    pressedElevation = 1.dp,
+                ),
+            interactionSource = interactionSource,
         ) {
-            Surface(
-                color = GilnunTeal,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.size(58.dp),
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(22.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                Surface(
+                    color = GilnunTeal,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.size(58.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = (ServiceId.entries.indexOf(serviceId) + 1).toString(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = (ServiceId.entries.indexOf(serviceId) + 1).toString(),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
+                        text = serviceId.portalLabel(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = GilnunTeal,
+                    )
+                    Text(
+                        text = serviceId.homeTitle(),
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                    Text(
+                        text = serviceId.homeDescription(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.outline,
                     )
                 }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = serviceId.portalLabel(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = GilnunTeal,
-                )
-                Text(
-                    text = serviceId.homeTitle(),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                Text(
-                    text = serviceId.homeDescription(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.outline,
-                )
             }
         }
     }
@@ -413,6 +529,7 @@ private fun ServiceCard(
 @Composable
 private fun PracticeScreen(
     state: GilnunUiState,
+    accessibilityHidden: Boolean,
     onHome: () -> Unit,
     onRead: () -> Unit,
     onHelp: () -> Unit,
@@ -432,7 +549,16 @@ private fun PracticeScreen(
             ?: service.steps.size
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .then(
+                    if (accessibilityHidden) {
+                        Modifier.semantics { hideFromAccessibility() }
+                    } else {
+                        Modifier
+                    },
+                ),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
@@ -455,14 +581,22 @@ private fun PracticeScreen(
                 totalSteps = service.steps.size,
                 onHome = onHome,
             )
-            if (state.receiptMessage != null) {
-                HumanReceipt(state.receiptMessage)
+            state.receiptMessage?.let { message ->
+                key(message) {
+                    AnimatedMessageEntry {
+                        HumanReceipt(message)
+                    }
+                }
             }
-            if (state.notice != null) {
-                Notice(
-                    message = state.notice,
-                    isError = state.speechUnavailable,
-                )
+            state.notice?.let { message ->
+                key(message, state.speechUnavailable) {
+                    AnimatedMessageEntry {
+                        Notice(
+                            message = message,
+                            isError = state.speechUnavailable,
+                        )
+                    }
+                }
             }
             Box(
                 modifier =
@@ -485,16 +619,57 @@ private fun PracticeScreen(
                     },
                     onSecurityEvent = onSecurityEvent,
                 )
-                if (!pageReady) {
-                    PracticeLoadingOverlay(serviceId)
-                }
+                LoadingOverlayVisibility(
+                    visible = !pageReady,
+                    serviceId = serviceId,
+                )
             }
         }
     }
 }
 
 @Composable
+private fun AnimatedMessageEntry(content: @Composable () -> Unit) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(durationMillis = 180)),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun LoadingOverlayVisibility(
+    visible: Boolean,
+    serviceId: ServiceId,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = Modifier.fillMaxSize(),
+        enter = fadeIn(tween(durationMillis = 120)),
+        exit = fadeOut(tween(durationMillis = 180)),
+    ) {
+        PracticeLoadingOverlay(serviceId)
+    }
+}
+
+@Composable
 private fun PracticeLoadingOverlay(serviceId: ServiceId) {
+    val loadingTransition = rememberInfiniteTransition(label = "practice loading")
+    val logoScale by
+        loadingTransition.animateFloat(
+            initialValue = 0.96f,
+            targetValue = 1.025f,
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(durationMillis = 820, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+            label = "practice loading logo",
+        )
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -508,11 +683,21 @@ private fun PracticeLoadingOverlay(serviceId: ServiceId) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.logo_gilnun),
-                contentDescription = null,
-                modifier = Modifier.size(112.dp),
-            )
+            Surface(
+                modifier =
+                    Modifier
+                        .size(112.dp)
+                        .scale(logoScale),
+                color = Color.White,
+                shape = RoundedCornerShape(26.dp),
+                shadowElevation = 6.dp,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.logo_gilnun),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Text(
                 text = "${serviceId.shortTitle()} 연습 화면 준비 중",
                 style = MaterialTheme.typography.headlineMedium,
@@ -772,7 +957,10 @@ private fun PracticeBanner() {
 @Composable
 private fun HumanReceipt(message: String) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { liveRegion = LiveRegionMode.Polite },
         color = MaterialTheme.colorScheme.primaryContainer,
         shape = RoundedCornerShape(12.dp),
     ) {
@@ -792,7 +980,10 @@ private fun Notice(
     isError: Boolean,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { liveRegion = LiveRegionMode.Polite },
         color =
             if (isError) {
                 GilnunError.copy(alpha = 0.12f)
@@ -816,15 +1007,33 @@ private fun HelpChoiceDialog(
     onHelper: () -> Unit,
     onDecline: () -> Unit,
 ) {
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val dialogScale by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0.96f,
+            animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+            label = "help dialog scale",
+        )
+    val dialogAlpha by
+        animateFloatAsState(
+            targetValue = if (entered) 1f else 0f,
+            animationSpec = tween(durationMillis = 160),
+            label = "help dialog alpha",
+        )
+
     Dialog(onDismissRequest = onDecline) {
         Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.9f),
+                    .fillMaxHeight(0.9f)
+                    .scale(dialogScale)
+                    .alpha(dialogAlpha),
             color = Color.White,
             shape = RoundedCornerShape(24.dp),
             tonalElevation = 8.dp,
+            shadowElevation = 14.dp,
         ) {
             Column(
                 modifier =
@@ -841,7 +1050,7 @@ private fun HelpChoiceDialog(
                 Text(
                     text =
                         if (fromFriction) {
-                            "같은 선택을 여러 번 하셨어요. 원하는 도움을 골라 주세요."
+                            "선택을 여러 번 다시 시도하셨어요. 지금 막힌 항목에 필요한 도움을 골라 주세요."
                         } else {
                             "원하는 도움을 골라 주세요. 앱이 대신 누르지는 않아요."
                         },
@@ -900,9 +1109,9 @@ private fun ServiceId.shortTitle(): String =
 
 private fun ServiceId.homeDescription(): String =
     when (this) {
-        ServiceId.BASIC_PENSION -> "신청 관계와 확인 항목 사이에서 다음 순서를 찾아요"
-        ServiceId.RESIDENT_RECORD -> "문서·주소·발급 형태·수령 방법을 차례로 선택해요"
-        ServiceId.HEALTH_SCREENING -> "민원 메뉴와 조회 기준 사이에서 대상 조회를 찾아요"
+        ServiceId.BASIC_PENSION -> "상황에 맞는 서비스·신청인 관계·연락 방법을 정확히 골라요"
+        ServiceId.RESIDENT_RECORD -> "문서·주소·표시 범위·수령 방법을 실제 신청서처럼 확인해요"
+        ServiceId.HEALTH_SCREENING -> "조회 대상·기준 연도·검진 종류를 서로 맞춰 확인해요"
     }
 
 private fun ServiceId.portalLabel(): String =

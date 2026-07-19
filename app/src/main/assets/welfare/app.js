@@ -54,7 +54,7 @@
       breadcrumb: ["연습 홈", "복지서비스 신청", "기초연금"],
       tabs: ["서비스 안내", "신청 연습", "진행 확인"],
       noticeTitle: "안심하고 연습하세요",
-      noticeText: "자격 판정, 기관 접수, 실제 알림 없이 정해진 선택지만 사용합니다.",
+      noticeText: "이번 연습 상황에 맞춰 서비스 분야·신청인 관계·연락 방법을 정확히 확인합니다.",
       steps: [
         {
           checkpoint: "pension-service",
@@ -425,6 +425,340 @@
     },
   });
 
+  const MISSTEP_EVENTS = Object.freeze({
+    "pension-service": {
+      type: "ACTION",
+      stableKey: "pension-service-misstep",
+      role: "button",
+      accessibleName: "복지서비스 선택 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "pension-applicant": {
+      type: "ACTION",
+      stableKey: "pension-applicant-misstep",
+      role: "button",
+      accessibleName: "신청인 정보 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "pension-method": {
+      type: "ACTION",
+      stableKey: "pension-method-misstep",
+      role: "button",
+      accessibleName: "신청 관계 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "pension-contact": {
+      type: "ACTION",
+      stableKey: "pension-contact-misstep",
+      role: "button",
+      accessibleName: "연락 방법 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "pension-review": {
+      type: "ACTION",
+      stableKey: "pension-save-draft",
+      role: "button",
+      accessibleName: "임시 저장",
+      effect: "NON_PROGRESS",
+    },
+    "resident-type": {
+      type: "ACTION",
+      stableKey: "resident-type-misstep",
+      role: "button",
+      accessibleName: "문서 종류 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "resident-address": {
+      type: "ACTION",
+      stableKey: "resident-address-misstep",
+      role: "button",
+      accessibleName: "행정구역 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "resident-issue-type": {
+      type: "ACTION",
+      stableKey: "resident-issue-misstep",
+      role: "button",
+      accessibleName: "발급 형태 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "resident-delivery": {
+      type: "HELP",
+      stableKey: "resident-delivery-help",
+      role: "button",
+      accessibleName: "수령 방법 안내",
+      effect: "NON_PROGRESS",
+    },
+    "resident-review": {
+      type: "ACTION",
+      stableKey: "resident-review-misstep",
+      role: "button",
+      accessibleName: "민원 내용 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "health-service": {
+      type: "ACTION",
+      stableKey: "health-service-misstep",
+      role: "button",
+      accessibleName: "건강서비스 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "health-person": {
+      type: "ACTION",
+      stableKey: "health-person-misstep",
+      role: "button",
+      accessibleName: "조회 대상 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "health-year": {
+      type: "ACTION",
+      stableKey: "health-year-misstep",
+      role: "button",
+      accessibleName: "조회 연도 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "health-kind": {
+      type: "ACTION",
+      stableKey: "health-kind-misstep",
+      role: "button",
+      accessibleName: "검진 종류 다시 확인",
+      effect: "NON_PROGRESS",
+    },
+    "health-query": {
+      type: "HELP",
+      stableKey: "health-schedule-help",
+      role: "button",
+      accessibleName: "검진 일정 안내",
+      effect: "NON_PROGRESS",
+    },
+  });
+
+  const PRACTICE_SCENARIOS = Object.freeze({
+    "pension-service": {
+      summary: "만 70세인 연습 사용자(가상)가 노후생활 지원을 처음 신청하려고 해요.",
+      fields: [
+        {
+          id: "category",
+          type: "select",
+          label: "복지서비스 분야",
+          options: ["영유아 지원", "장애인 지원", "노후생활 지원", "한부모 지원"],
+          expected: "노후생활 지원",
+          guidance: "가상 사용자는 만 70세이므로 ‘노후생활 지원’을 확인해 주세요.",
+        },
+        {
+          id: "request",
+          type: "radio",
+          label: "신청 구분",
+          options: ["처음 신청", "변경 신청", "중지 신청"],
+          expected: "처음 신청",
+          guidance: "이번 상황은 처음 신청하는 연습이에요.",
+        },
+      ],
+    },
+    "pension-applicant": {
+      summary: "실제 개인정보 없이, 화면에 표시된 연습 사용자(가상) 본인을 확인해요.",
+      fields: [
+        {
+          id: "person",
+          type: "select",
+          label: "신청 대상",
+          options: ["연습 사용자 본인(가상)", "배우자(가상)", "가족 대리인(가상)"],
+          expected: "연습 사용자 본인(가상)",
+          guidance: "이번 연습의 신청 대상은 화면에 표시된 본인이에요.",
+        },
+        {
+          id: "privacy",
+          type: "checkbox",
+          label: "실제 주민번호나 연락처를 입력하지 않는 연습임을 확인했어요",
+          expected: true,
+          guidance: "개인정보를 입력하지 않는 연습인지 먼저 확인해 주세요.",
+        },
+      ],
+    },
+    "pension-method": {
+      summary: "연습 사용자(가상)가 본인 휴대폰으로 직접 신청 순서를 연습해요.",
+      fields: [
+        {
+          id: "authority",
+          type: "checkbox",
+          label: "본인이 직접 내용을 확인하고 선택해요",
+          expected: true,
+          guidance: "도우미가 대신 결정하지 않고 본인이 직접 선택하는 경로예요.",
+        },
+      ],
+    },
+    "pension-contact": {
+      summary: "실제 문자나 우편은 보내지 않고 앱 안의 연습 알림으로만 확인해요.",
+      fields: [
+        {
+          id: "channel",
+          type: "radio",
+          label: "처리 소식 확인 방법",
+          options: ["앱 안 연습 알림", "문자 발송", "등기 우편", "전화 연락"],
+          expected: "앱 안 연습 알림",
+          guidance: "실제 연락을 사용하지 않으므로 ‘앱 안 연습 알림’을 선택해 주세요.",
+        },
+        {
+          id: "delivery",
+          type: "checkbox",
+          label: "실제 알림은 발송되지 않음을 확인했어요",
+          expected: true,
+          guidance: "연습 범위를 확인해야 연락 방법을 확정할 수 있어요.",
+        },
+      ],
+    },
+    "pension-review": {
+      summary: "서비스·신청인·관계·연락 방법이 이번 연습 상황과 같은지 대조해요.",
+      fields: [
+        { id: "service", type: "checkbox", label: "기초연금 신청 연습", expected: true, guidance: "신청할 서비스를 확인해 주세요." },
+        { id: "relation", type: "checkbox", label: "연습 사용자 본인 신청", expected: true, guidance: "신청인 관계를 확인해 주세요." },
+        { id: "contact", type: "checkbox", label: "앱 안 연습 알림", expected: true, guidance: "연락 방법을 확인해 주세요." },
+      ],
+    },
+    "resident-type": {
+      summary: "현재 주소와 세대 구성을 함께 보여 주는 한글 등본을 기관 제출용으로 연습해요.",
+      fields: [
+        {
+          id: "language",
+          type: "radio",
+          label: "문서 언어",
+          options: ["한글", "영문"],
+          expected: "한글",
+          guidance: "이번 제출처는 한글 문서를 요구해요.",
+        },
+        {
+          id: "purpose",
+          type: "select",
+          label: "사용 목적",
+          options: ["기관 제출용(연습)", "개인 확인용(연습)", "해외 제출용(연습)"],
+          expected: "기관 제출용(연습)",
+          guidance: "상황 카드에 적힌 ‘기관 제출용’을 선택해 주세요.",
+        },
+      ],
+    },
+    "resident-address": {
+      summary: "가상 주소는 서울특별시(가상) 길눈구(가상)의 현재 세대 주소예요.",
+      fields: [
+        {
+          id: "address-kind",
+          type: "radio",
+          label: "주소 기준",
+          options: ["현재 세대 주소", "이전 주소", "등록기준지"],
+          expected: "현재 세대 주소",
+          guidance: "이번 연습은 현재 세대 주소를 기준으로 해요.",
+        },
+      ],
+    },
+    "resident-issue-type": {
+      summary: "과거 주소 변동을 제외하고 기본 세대 정보가 표시되는 일반 발급을 연습해요.",
+      fields: [
+        {
+          id: "range",
+          type: "select",
+          label: "표시할 정보 범위",
+          options: ["기본 발급 항목", "주소 변동 전체", "주민번호 전체 표시"],
+          expected: "기본 발급 항목",
+          guidance: "불필요한 상세 정보 없이 기본 발급 항목만 사용해요.",
+        },
+      ],
+    },
+    "resident-delivery": {
+      summary: "연습 사용자 본인이 집에서 확인하는 경로이며 실제 출력·저장은 하지 않아요.",
+      fields: [
+        {
+          id: "receiver",
+          type: "radio",
+          label: "수령 주체",
+          options: ["본인", "가족 대리인", "제출 기관"],
+          expected: "본인",
+          guidance: "이번 연습은 본인이 직접 확인하는 경로예요.",
+        },
+      ],
+    },
+    "resident-review": {
+      summary: "문서 종류·주소·발급 형태·수령 방법을 모두 확인한 뒤 연습을 마쳐요.",
+      fields: [
+        { id: "document", type: "checkbox", label: "주민등록표 등본(가상)", expected: true, guidance: "문서 종류를 확인해 주세요." },
+        { id: "address", type: "checkbox", label: "서울특별시(가상) 길눈구(가상)", expected: true, guidance: "행정구역을 확인해 주세요." },
+        { id: "no-effect", type: "checkbox", label: "법적 효력이 없는 모의 문서임을 확인했어요", expected: true, guidance: "모의 문서의 범위를 확인해 주세요." },
+      ],
+    },
+    "health-service": {
+      summary: "2026년 일반건강검진의 대상 여부만 확인하고 결과·예약은 조회하지 않아요.",
+      fields: [
+        {
+          id: "menu",
+          type: "select",
+          label: "건강서비스 분야",
+          options: ["건강검진", "보험료 조회", "진료내역", "요양기관"],
+          expected: "건강검진",
+          guidance: "이번 연습은 건강검진 서비스예요.",
+        },
+        {
+          id: "task",
+          type: "radio",
+          label: "확인할 업무",
+          options: ["대상 여부 조회", "검진 결과 조회", "검진 예약"],
+          expected: "대상 여부 조회",
+          guidance: "결과나 예약이 아닌 ‘대상 여부 조회’를 선택해 주세요.",
+        },
+      ],
+    },
+    "health-person": {
+      summary: "다른 가족이 아닌 화면의 연습 사용자 본인(가상)을 조회해요.",
+      fields: [
+        {
+          id: "subject",
+          type: "select",
+          label: "조회 대상",
+          options: ["연습 사용자 본인(가상)", "배우자(가상)", "자녀(가상)"],
+          expected: "연습 사용자 본인(가상)",
+          guidance: "이번 조회 대상은 화면의 연습 사용자 본인이에요.",
+        },
+        {
+          id: "identity",
+          type: "checkbox",
+          label: "실제 본인인증을 실행하지 않음을 확인했어요",
+          expected: true,
+          guidance: "실제 기관과 연결되지 않는 연습임을 확인해 주세요.",
+        },
+      ],
+    },
+    "health-year": {
+      summary: "올해 연습 기준은 2026년이며 이전 연도의 검진 이력은 조회하지 않아요.",
+      fields: [
+        {
+          id: "purpose",
+          type: "radio",
+          label: "조회 목적",
+          options: ["올해 대상 확인", "지난 결과 확인", "예약 변경"],
+          expected: "올해 대상 확인",
+          guidance: "이번 연습은 올해 대상 여부만 확인해요.",
+        },
+      ],
+    },
+    "health-kind": {
+      summary: "성인 연습 사용자의 일반건강검진 대상 여부만 확인해요.",
+      fields: [
+        {
+          id: "scope",
+          type: "checkbox",
+          label: "검진 결과나 의료 수치는 확인하지 않아요",
+          expected: true,
+          guidance: "이 연습은 대상 여부까지만 다뤄요.",
+        },
+      ],
+    },
+    "health-query": {
+      summary: "연습 사용자 본인·2026년·일반건강검진 조건이 모두 맞을 때만 조회해요.",
+      fields: [
+        { id: "person", type: "checkbox", label: "연습 사용자 본인(가상)", expected: true, guidance: "조회 대상을 확인해 주세요." },
+        { id: "year", type: "checkbox", label: "2026년(가상)", expected: true, guidance: "조회 기준 연도를 확인해 주세요." },
+        { id: "kind", type: "checkbox", label: "일반건강검진(모의)", expected: true, guidance: "검진 종류를 확인해 주세요." },
+      ],
+    },
+  });
+
   const query = new URLSearchParams(window.location.search);
   const requestedServiceId = query.get("service");
   const requestedLayout = query.get("layout");
@@ -479,6 +813,14 @@
   function setStatus(message, isError = false) {
     practiceStatus.textContent = message;
     practiceStatus.classList.toggle("is-error", isError);
+  }
+
+  function registerMisstep(step, message) {
+    const event = MISSTEP_EVENTS[step.checkpoint];
+    if (event) {
+      emitInteraction(event);
+    }
+    setStatus(message, true);
   }
 
   function postPayload(payload) {
@@ -585,7 +927,7 @@
     } else {
       controls.forEach((item) => item.setAttribute("aria-pressed", String(item === control)));
     }
-    setStatus(`${label} 항목을 선택했어요. 안내된 선택을 찾으면 다음 단계로 이동해요.`);
+    setStatus(`${label} 항목을 선택했어요. 이번 연습 상황과 맞는지 확인합니다.`);
   }
 
   function orderedChoices(step) {
@@ -626,15 +968,25 @@
       control.addEventListener("click", () => {
         selectLocalChoice(group, control, step.role, label);
         if (!isCurrent) {
-          setStatus(`${currentStepIndex + 1}단계부터 차례로 확인해 주세요.`);
+          registerMisstep(
+            service.steps[currentStepIndex],
+            `${currentStepIndex + 1}단계의 현재 상황부터 정확히 확인해 주세요.`,
+          );
           return;
         }
         if (label !== step.accessibleName) {
-          setStatus(`${label}을(를) 선택했어요. 이 연습의 다음 순서는 아니에요.`);
+          registerMisstep(
+            step,
+            `${label}은(는) 이번 연습 상황과 맞지 않아요. 상황 카드의 조건을 다시 확인해 주세요.`,
+          );
           return;
         }
         if (!canProgress()) {
-          setStatus(blockedStatus || "먼저 이 구역의 선택 내용을 확인해 주세요.");
+          if (typeof blockedStatus === "function") {
+            blockedStatus();
+          } else {
+            registerMisstep(step, blockedStatus || "먼저 이 구역의 선택 내용을 정확히 확인해 주세요.");
+          }
           return;
         }
         handleInteraction(step);
@@ -644,7 +996,10 @@
     return group;
   }
 
-  function createChoiceSelect(step, { isCurrent = true } = {}) {
+  function createChoiceSelect(
+    step,
+    { isCurrent = true, canProgress = () => true, blockedStatus = "" } = {},
+  ) {
     const wrap = createElement("div", "fixed-select-wrap");
     const label = createElement("span", "fixed-select-label", "수령 방법 선택");
     const select = createElement("select", "fixed-choice-select");
@@ -665,11 +1020,23 @@
       const selected = select.value;
       setStatus(`${selected} 항목을 선택했어요.`);
       if (!isCurrent) {
-        setStatus(`${currentStepIndex + 1}단계부터 차례로 확인해 주세요.`);
+        registerMisstep(
+          service.steps[currentStepIndex],
+          `${currentStepIndex + 1}단계의 현재 상황부터 정확히 확인해 주세요.`,
+        );
       } else if (selected === step.accessibleName) {
-        handleInteraction(step);
+        if (canProgress()) {
+          handleInteraction(step);
+        } else if (typeof blockedStatus === "function") {
+          blockedStatus();
+        } else {
+          registerMisstep(step, blockedStatus || "먼저 이 구역의 선택 내용을 정확히 확인해 주세요.");
+        }
       } else {
-        setStatus(`${selected}은(는) 이 연습의 다음 순서는 아니에요.`);
+        registerMisstep(
+          step,
+          `${selected}은(는) 이번 연습 상황과 맞지 않아요. 수령 주체와 연습 목적을 다시 확인해 주세요.`,
+        );
       }
     });
     wrap.append(label, select);
@@ -691,7 +1058,11 @@
     const heading = createElement("h2", "", step.title);
     heading.id = "step-title";
     heading.tabIndex = -1;
-    const copy = createElement("p", "step-copy", "정해진 선택지만 사용합니다. 안내된 의미의 항목을 직접 선택해 주세요.");
+    const copy = createElement(
+      "p",
+      "step-copy",
+      "이번 연습 상황을 읽고 각 항목을 정확히 확인한 뒤, 의미가 맞는 선택을 직접 눌러 주세요.",
+    );
     headingGroup.append(stepNumber, heading, copy);
     return { headingGroup, heading };
   }
@@ -708,6 +1079,134 @@
       summary.append(createElement("span", "document-preview__watermark", step.watermark));
     }
     return summary;
+  }
+
+  function createScenarioForm(step) {
+    const scenario = PRACTICE_SCENARIOS[step.checkpoint];
+    if (!scenario) {
+      return {
+        element: null,
+        isSatisfied: () => true,
+        reportFirstInvalid: () => {},
+      };
+    }
+
+    const card = createElement("section", "scenario-card");
+    const heading = createElement("h4", "", "이번 연습 상황");
+    const summary = createElement("p", "scenario-card__summary", scenario.summary);
+    const fields = createElement("div", "scenario-fields");
+    const validators = [];
+    card.append(heading, summary, fields);
+
+    scenario.fields.forEach((field, fieldIndex) => {
+      const fieldId = `${step.checkpoint}-${field.id}`;
+      const feedbackId = `${fieldId}-feedback`;
+      const feedback = createElement("p", "scenario-field__feedback", "조건을 확인하고 선택해 주세요.");
+      feedback.id = feedbackId;
+      const fieldWrap =
+        field.type === "radio"
+          ? createElement("fieldset", "scenario-field")
+          : createElement("div", "scenario-field");
+      let isCorrect;
+      let focusControl;
+      let setInvalid;
+
+      if (field.type === "select") {
+        const label = createElement("label", "scenario-field__label", field.label);
+        label.htmlFor = fieldId;
+        const select = createElement("select", "scenario-select");
+        select.id = fieldId;
+        select.setAttribute("aria-describedby", feedbackId);
+        const prompt = createElement("option", "", "선택해 주세요");
+        prompt.value = "";
+        prompt.disabled = true;
+        prompt.selected = true;
+        select.append(prompt);
+        field.options.forEach((optionLabel) => {
+          const option = createElement("option", "", optionLabel);
+          option.value = optionLabel;
+          select.append(option);
+        });
+        isCorrect = () => select.value === field.expected;
+        focusControl = () => select.focus();
+        setInvalid = (invalid) => select.setAttribute("aria-invalid", String(invalid));
+        fieldWrap.append(label, select);
+        select.addEventListener("change", () => validate(true));
+      } else if (field.type === "radio") {
+        const legend = createElement("legend", "scenario-field__label", field.label);
+        const choices = createElement("div", "scenario-radio-group");
+        const radios = [];
+        field.options.forEach((optionLabel, optionIndex) => {
+          const optionId = `${fieldId}-${optionIndex}`;
+          const option = createElement("label", "scenario-radio");
+          const input = createElement("input");
+          input.type = "radio";
+          input.name = fieldId;
+          input.id = optionId;
+          input.value = optionLabel;
+          input.setAttribute("aria-describedby", feedbackId);
+          option.append(input, createElement("span", "", optionLabel));
+          choices.append(option);
+          radios.push(input);
+          input.addEventListener("change", () => validate(true));
+        });
+        isCorrect = () => radios.some((radio) => radio.checked && radio.value === field.expected);
+        focusControl = () => (radios.find((radio) => radio.checked) || radios[0]).focus();
+        setInvalid = (invalid) =>
+          radios.forEach((radio) => radio.setAttribute("aria-invalid", String(invalid)));
+        fieldWrap.append(legend, choices);
+      } else {
+        const label = createElement("label", "scenario-check");
+        const input = createElement("input");
+        input.type = "checkbox";
+        input.id = fieldId;
+        input.setAttribute("aria-describedby", feedbackId);
+        label.append(input, createElement("span", "", field.label));
+        isCorrect = () => input.checked === field.expected;
+        focusControl = () => input.focus();
+        setInvalid = (invalid) => input.setAttribute("aria-invalid", String(invalid));
+        fieldWrap.append(label);
+        input.addEventListener("change", () => validate(true));
+      }
+
+      function validate(announce) {
+        const correct = isCorrect();
+        fieldWrap.classList.toggle("is-correct", correct);
+        fieldWrap.classList.toggle("is-error", !correct);
+        setInvalid(!correct);
+        feedback.textContent = correct ? "이번 상황과 맞는 선택이에요." : field.guidance;
+        if (announce) {
+          if (correct) {
+            setStatus(`${field.label}: 이번 연습 상황과 맞아요.`);
+          } else {
+            registerMisstep(step, `${field.label}: ${field.guidance}`);
+          }
+        }
+        return correct;
+      }
+
+      fieldWrap.append(feedback);
+      fields.append(fieldWrap);
+      validators.push({
+        isCorrect,
+        focus: focusControl,
+        report: () => {
+          validate(false);
+          registerMisstep(step, `${field.label}: ${field.guidance}`);
+        },
+      });
+    });
+
+    return {
+      element: card,
+      isSatisfied: () => validators.every((validator) => validator.isCorrect()),
+      reportFirstInvalid: () => {
+        const invalid = validators.find((validator) => !validator.isCorrect());
+        if (!invalid) return;
+        invalid.report();
+        invalid.focus();
+      },
+    };
   }
 
   function createSafetyNotice(step) {
@@ -737,8 +1236,14 @@
     const header = createElement("header", "service-form-section__header");
     const stateLabel =
       index === currentStepIndex ? "현재 확인할 항목" : index < currentStepIndex ? "확인한 항목" : "이어서 확인할 항목";
+    const sectionNumber = createElement("span", "resident-section-number");
+    sectionNumber.setAttribute("aria-label", `${index + 1}. ${stateLabel}`);
+    sectionNumber.append(
+      createElement("span", "section-index", `${index + 1}.`),
+      createElement("span", "section-state", stateLabel),
+    );
     header.append(
-      createElement("span", "resident-section-number", `${index + 1}. ${stateLabel}`),
+      sectionNumber,
       createElement("h3", "", step.title),
     );
     return header;
@@ -752,12 +1257,18 @@
     );
     section.dataset.sectionCheckpoint = step.checkpoint;
     section.append(createSectionHeader(step, index), createGroupedSummary(step));
+    const scenario = isCurrent ? createScenarioForm(step) : null;
+    if (scenario?.element) {
+      section.append(scenario.element);
+    }
 
     const choiceBoard = createElement("div", `choice-board ${variant}-choice-board`);
     choiceBoard.append(
-      createElement("h4", "", isCurrent ? "지금 선택할 내용" : "같은 화면에 있는 선택 항목"),
+      createElement("h4", "", isCurrent ? "조건을 확인한 뒤 선택" : "같은 화면에 있는 선택 항목"),
       createChoiceButtons(step, variant === "health" ? "health-choice-grid" : "choice-grid", {
         isCurrent,
+        canProgress: scenario?.isSatisfied,
+        blockedStatus: scenario?.reportFirstInvalid,
       }),
     );
     section.append(choiceBoard);
@@ -801,7 +1312,7 @@
     if (moveFocus) heading.focus();
   }
 
-  function createFixedJurisdiction() {
+  function createFixedJurisdiction(step) {
     const region = createElement("section", "resident-jurisdiction");
     region.append(createElement("h3", "", "행정구역 (가상)"));
     const selectedValues = [];
@@ -816,15 +1327,25 @@
         select.append(option);
       });
       selectedValues.push(select);
-      select.addEventListener("change", () => setStatus(`${select.value} 항목을 가상 주소로 선택했어요.`));
+      select.addEventListener("change", () => {
+        if (isExpected()) {
+          setStatus("서울특별시(가상)와 길눈구(가상)가 이번 상황과 맞아요.");
+        } else {
+          registerMisstep(
+            step,
+            "이번 상황의 주소는 서울특별시(가상) 길눈구(가상)예요. 행정구역을 다시 확인해 주세요.",
+          );
+        }
+      });
       wrap.append(label, select);
       region.append(wrap);
     });
+    const isExpected = () =>
+      selectedValues[0].value === "서울특별시(가상)" &&
+      selectedValues[1].value === "길눈구(가상)";
     return {
       region,
-      isExpected: () =>
-        selectedValues[0].value === "서울특별시(가상)" &&
-        selectedValues[1].value === "길눈구(가상)",
+      isExpected,
     };
   }
 
@@ -849,22 +1370,40 @@
     );
     section.dataset.sectionCheckpoint = step.checkpoint;
     section.append(createSectionHeader(step, index), createGroupedSummary(step));
+    const scenario = isCurrent ? createScenarioForm(step) : null;
+    if (scenario?.element) {
+      section.append(scenario.element);
+    }
 
     let jurisdiction = null;
-    if (step.checkpoint === "resident-address") {
-      jurisdiction = createFixedJurisdiction();
+    if (isCurrent && step.checkpoint === "resident-address") {
+      jurisdiction = createFixedJurisdiction(step);
       section.append(jurisdiction.region);
     }
     const controls =
       step.role === "combobox"
-        ? createChoiceSelect(step, { isCurrent })
+        ? createChoiceSelect(step, {
+            isCurrent,
+            canProgress: () => (scenario?.isSatisfied() ?? true),
+            blockedStatus: scenario?.reportFirstInvalid,
+          })
         : createChoiceButtons(
             step,
             step.role === "tab" ? "resident-document-tabs" : "resident-control-grid",
             {
               isCurrent,
-              canProgress: jurisdiction ? jurisdiction.isExpected : () => true,
-              blockedStatus: "서울특별시(가상)와 길눈구(가상)를 선택한 뒤 주소를 확인해 주세요.",
+              canProgress: () =>
+                (scenario?.isSatisfied() ?? true) && (jurisdiction?.isExpected() ?? true),
+              blockedStatus: () => {
+                if (scenario && !scenario.isSatisfied()) {
+                  scenario.reportFirstInvalid();
+                  return;
+                }
+                registerMisstep(
+                  step,
+                  "서울특별시(가상)와 길눈구(가상)를 선택한 뒤 주소를 확인해 주세요.",
+                );
+              },
             },
           );
     section.append(controls);
@@ -942,8 +1481,18 @@
 
   function renderProgress() {
     progressList.replaceChildren();
+    sideMenuTitle.textContent = isComplete
+      ? `${service.steps.length} / ${service.steps.length}단계 · 연습 완료`
+      : `${currentStepIndex + 1} / ${service.steps.length}단계 · ${service.steps[currentStepIndex].title}`;
     service.steps.forEach((step, index) => {
-      const item = createElement("li", "", `${index + 1}. ${step.title}`);
+      const item = createElement("li");
+      const stateLabel =
+        index < currentStepIndex || isComplete ? "완료" : index === currentStepIndex ? "현재 단계" : "예정";
+      item.setAttribute("aria-label", `${index + 1}단계 ${step.title}, ${stateLabel}`);
+      item.append(
+        createElement("span", "progress-index", `${index + 1}`),
+        createElement("span", "progress-label", `${index + 1}. ${step.title}`),
+      );
       if (index < currentStepIndex || isComplete) item.classList.add("is-complete");
       else if (index === currentStepIndex) item.setAttribute("aria-current", "step");
       progressList.append(item);

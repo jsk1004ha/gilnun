@@ -166,10 +166,13 @@ foreach ($token in @(
 if ($allAssets -match '(?is)<\s*(form|input|textarea)\b') {
     throw 'Practice assets contain a form or free-entry input element.'
 }
-if ($script -match '(?i)(?:document\.)?createElement\s*\(\s*["''](?:form|input|textarea)["'']') {
-    throw 'Practice assets dynamically create a form or free-entry input element.'
+if ($script -match '(?i)(?:document\.)?createElement\s*\(\s*["''](?:form|textarea)["'']') {
+    throw 'Practice assets dynamically create a form or free-entry text area.'
 }
-if ($allAssets -match '(?i)\b(submit|payment|login)\b|제출|결제|로그인') {
+if ($script -match '(?i)\.type\s*=\s*["''](?:text|email|tel|number|date|password|search|url)["'']') {
+    throw 'Practice assets dynamically create a free-entry input control.'
+}
+if ($allAssets -match '(?i)\b(submit|payment|login)\b|제출하기|민원\s*제출|결제|로그인') {
     throw 'Practice assets contain a real submission, payment, or login affordance.'
 }
 Assert-Contains -Text $style -Expected 'overflow-x: hidden' -Description 'horizontal overflow protection'
@@ -187,8 +190,8 @@ if ($apkanalyzerExitCode -ne 0) {
 }
 $manifest = $manifestLines | Out-String
 Assert-Contains -Text $manifest -Expected 'package="com.gilnun.app"' -Description 'application package'
-Assert-Contains -Text $manifest -Expected 'android:versionCode="3"' -Description 'version code'
-Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.1"' -Description 'version name'
+Assert-Contains -Text $manifest -Expected 'android:versionCode="4"' -Description 'version code'
+Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.2"' -Description 'version name'
 if ($manifest -match 'android:debuggable="true"') { throw 'Release APK is debuggable.' }
 foreach ($permission in @(
     'android.permission.INTERNET',

@@ -43,7 +43,7 @@ $deviceStatus = switch ([string]$deviceEvidence.status) {
 }
 
 $summary = @(
-    '# 길눈 Android APK v0.2.1 검증 요약'
+    '# 길눈 Android APK v0.2.2 검증 요약'
     ''
     "생성 시각: $([DateTimeOffset]::Now.ToString('o'))"
     ''
@@ -54,7 +54,7 @@ $summary = @(
     '- debug APK / Android 테스트 APK / signed release APK 빌드: PASS'
     '- 오프라인·권한·WebView·CSP 정적 경계 검사: PASS'
     '- zipalign 및 apksigner 검증: PASS'
-    '- 패키지/버전: com.gilnun.app · 0.2.1 (3)'
+    '- 패키지/버전: com.gilnun.app · 0.2.2 (4)'
     '- 서명 인증서 SHA-256: 9afeec4a9d95be7c5c24c31dad220cd8531548354e3c852634a2e3e2c49ea991'
     ''
     "## $deviceStatus"
@@ -65,7 +65,7 @@ $summary = @(
     '- API 26 / 37 오프라인 완주'
     '- 실제 DOM을 구동하는 A→B 자동 재배치 후 의미 매칭 계측: 자동 실행 증거 없음(정적 의미 계약은 PASS)'
     '- 오프라인 WebView 실제 로딩: 기기 미실행(packaged asset·네트워크 차단 검사는 PASS)'
-    '- 기존 v0.2.0 APK 위 업데이트 설치'
+    '- 기존 v0.2.0 / v0.2.1 APK 위 업데이트 설치'
     ''
     '기기가 연결되기 전에는 위 항목을 PASS로 표시하지 않습니다.'
     ''

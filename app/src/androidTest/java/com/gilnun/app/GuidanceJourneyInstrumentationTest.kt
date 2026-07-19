@@ -147,6 +147,54 @@ class GuidanceJourneyInstrumentationTest {
         assertEquals(GilnunViewModel.COMPLETION_HELP_MESSAGE, viewModel.uiState.value.notice)
     }
 
+    @Test
+    fun threeCatalogFrictionEventsOpenTheAutomaticHelpPrompt() {
+        ServiceId.entries.forEach { serviceId ->
+            val checkpoint = reachFrictionCheckpoint(serviceId)
+
+            repeat(3) {
+                viewModel.onBridgeEvent(frictionEvent(serviceId, checkpoint))
+            }
+
+            assertTrue(viewModel.uiState.value.helpPromptVisible)
+            assertTrue(viewModel.uiState.value.helpPromptFromFriction)
+            assertEquals(checkpoint, viewModel.uiState.value.checkpoint)
+            viewModel.declineHelp()
+        }
+    }
+
+    @Test
+    fun decliningFrictionHelpSuppressesAnImmediateAutomaticReprompt() {
+        val serviceId = ServiceId.BASIC_PENSION
+        val checkpoint = reachFrictionCheckpoint(serviceId)
+        repeat(3) {
+            viewModel.onBridgeEvent(frictionEvent(serviceId, checkpoint))
+        }
+
+        viewModel.declineHelp()
+        repeat(3) {
+            viewModel.onBridgeEvent(frictionEvent(serviceId, checkpoint))
+        }
+
+        assertFalse(viewModel.uiState.value.helpPromptVisible)
+        assertEquals("지금은 도움 안내를 닫았어요.", viewModel.uiState.value.notice)
+    }
+
+    @Test
+    fun directHelpStillOpensDuringTheAutomaticPromptCooldown() {
+        val serviceId = ServiceId.BASIC_PENSION
+        val checkpoint = reachFrictionCheckpoint(serviceId)
+        repeat(3) {
+            viewModel.onBridgeEvent(frictionEvent(serviceId, checkpoint))
+        }
+        viewModel.declineHelp()
+
+        viewModel.requestHelp()
+
+        assertTrue(viewModel.uiState.value.helpPromptVisible)
+        assertFalse(viewModel.uiState.value.helpPromptFromFriction)
+    }
+
     private fun completeWithoutHelp(serviceId: ServiceId) {
         val service = ServiceCatalog.require(serviceId)
         viewModel.selectService(serviceId)
@@ -155,6 +203,34 @@ class GuidanceJourneyInstrumentationTest {
         assertEquals(service.completionCheckpoint.id, viewModel.uiState.value.checkpoint)
         assertFalse(viewModel.uiState.value.guidanceShown)
         assertEquals(null, viewModel.uiState.value.receiptMessage)
+    }
+
+    private fun reachFrictionCheckpoint(serviceId: ServiceId): String {
+        val service = ServiceCatalog.require(serviceId)
+        viewModel.selectService(serviceId)
+        service.steps.dropLast(1).forEach { step -> advance(serviceId, step.id) }
+        val checkpoint = service.steps.last().id
+        assertNotNull(service.requireCheckpoint(checkpoint).frictionEvent)
+        return checkpoint
+    }
+
+    private fun frictionEvent(
+        serviceId: ServiceId,
+        checkpoint: String,
+    ): BridgeEventV2.ActionOrHelp {
+        val service = ServiceCatalog.require(serviceId)
+        val friction = requireNotNull(service.requireCheckpoint(checkpoint).frictionEvent)
+        return BridgeEventV2.ActionOrHelp(
+            schemaVersion = 2,
+            type = friction.type,
+            serviceId = serviceId,
+            revision = service.revision,
+            checkpoint = checkpoint,
+            stableKey = friction.stableKey,
+            role = friction.role,
+            accessibleName = friction.accessibleName,
+            effect = friction.effect,
+        )
     }
 
     private fun advance(

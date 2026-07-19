@@ -1,5 +1,7 @@
 package com.gilnun.app.web
 
+import com.gilnun.app.catalog.EventEffect
+import com.gilnun.app.catalog.ServiceCatalog
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -350,11 +352,14 @@ class PracticeAssetContractTest {
         assertFalse(Regex("""(?i)<\s*form\b""").containsMatchIn(html))
         assertFalse(Regex("""(?i)<\s*(input|textarea)\b""").containsMatchIn(html))
         assertFalse(
-            "Dynamic form and free-entry controls are forbidden",
+            "Form containers and free-entry text areas are forbidden",
             Regex(
-                """(?i)(?:document\.)?createElement\s*\(\s*["'](?:form|input|textarea)["']""",
+                """(?i)(?:document\.)?createElement\s*\(\s*["'](?:form|textarea)["']""",
             ).containsMatchIn(javascript),
         )
+        assertContains(javascript, """input.type = "radio"""")
+        assertContains(javascript, """input.type = "checkbox"""")
+        assertFalse("""input.type = "text"""" in javascript)
         assertFalse(Regex("""(?i)\.(click|dispatchEvent)\s*\(""").containsMatchIn(javascript))
         assertFalse(Regex("""(?i)\b(submit|payment|login)\b""").containsMatchIn(javascript))
     }
@@ -398,9 +403,9 @@ class PracticeAssetContractTest {
                 .containsMatchIn(css),
         )
         assertTrue(
-            "Mobile layout B must still place content before the progress rail",
+            "Mobile layout B must place progress before content so the current step stays visible",
             Regex(
-                """@media\s*\(max-width:\s*40rem\)[\s\S]*?\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-areas:\s*"content"\s*"rail"""",
+                """@media\s*\(max-width:\s*40rem\)[\s\S]*?\.layout-b\s+\.service-workspace\s*\{[^}]*grid-template-areas:\s*"rail"\s*"content"""",
             ).containsMatchIn(css),
         )
         assertFalse("CSS order is forbidden", Regex("""\border\s*:""").containsMatchIn(css))
@@ -445,8 +450,8 @@ class PracticeAssetContractTest {
         assertContains(javascript, "section.dataset.sectionCheckpoint = step.checkpoint")
         assertContains(javascript, "if (isCurrent && label === step.accessibleName)")
         assertContains(javascript, "if (!isCurrent)")
-        assertContains(javascript, "이 연습의 다음 순서는 아니에요")
-        assertContains(javascript, "jurisdiction ? jurisdiction.isExpected")
+        assertContains(javascript, "이번 연습 상황과 맞지 않아요")
+        assertContains(javascript, "jurisdiction?.isExpected() ?? true")
         assertContains(javascript, """selectedValues[0].value === "서울특별시(가상)"""")
         assertContains(javascript, """selectedValues[1].value === "길눈구(가상)"""")
         assertEquals(
@@ -511,6 +516,79 @@ class PracticeAssetContractTest {
                     Regex("""(?i)\b${Regex.escape(forbidden)}\b""").containsMatchIn(interactionBody),
                 )
             }
+    }
+
+    @Test
+    fun `catalog friction controls send non-progress interactions to the Android bridge`() {
+        val frictionButtonBody = functionBody("createFrictionButton")
+        val interactionBody = functionBody("handleInteraction")
+
+        assertContains(
+            frictionButtonBody,
+            """button.addEventListener("click", () => handleInteraction(friction))""",
+        )
+        assertTrue(
+            "NON_PROGRESS must be emitted before the local early return",
+            Regex(
+                """emitInteraction\(event\);\s*if \(event\.effect === "NON_PROGRESS"\)""",
+            ).containsMatchIn(interactionBody),
+        )
+    }
+
+    @Test
+    fun `realistic scenario controls gate progress and report wrong choices to struggle detection`() {
+        assertContains(javascript, "const PRACTICE_SCENARIOS = Object.freeze")
+        assertContains(javascript, "const MISSTEP_EVENTS = Object.freeze")
+        assertContains(javascript, "function createScenarioForm")
+        assertContains(javascript, """type: "select"""")
+        assertContains(javascript, """type: "radio"""")
+        assertContains(javascript, """type: "checkbox"""")
+        assertContains(javascript, "canProgress: scenario?.isSatisfied")
+        assertContains(javascript, "scenario.reportFirstInvalid()")
+        assertContains(javascript, "function registerMisstep")
+        assertContains(
+            functionBody("registerMisstep"),
+            "emitInteraction(event)",
+        )
+        assertContains(css, ".scenario-card")
+        assertContains(css, ".scenario-field.is-error")
+        assertContains(css, ".scenario-field.is-correct")
+        assertContains(css, "min-height: 56px")
+    }
+
+    @Test
+    fun `current-step misselections send their catalog non-progress event to Android`() {
+        val registerBody = functionBody("registerMisstep")
+
+        assertContains(registerBody, "const event = MISSTEP_EVENTS[step.checkpoint]")
+        assertContains(registerBody, "emitInteraction(event)")
+        assertContains(functionSection("createChoiceButtons", "createChoiceSelect"), "registerMisstep(")
+        assertContains(functionSection("createChoiceSelect", "createFrictionButton"), "registerMisstep(")
+        assertContains(functionSection("createScenarioForm", "createSafetyNotice"), "registerMisstep(")
+    }
+
+    @Test
+    fun `asset misstep events mirror every Android non-progress contract`() {
+        ServiceCatalog.services.forEach { service ->
+            service.steps.forEach { checkpoint ->
+                val friction = requireNotNull(checkpoint.frictionEvent)
+                assertEquals(EventEffect.NON_PROGRESS, friction.effect)
+                assertContains(
+                    compact(javascript),
+                    compact(
+                        """
+                        "${checkpoint.id}": {
+                          type: "${friction.type}",
+                          stableKey: "${friction.stableKey}",
+                          role: "${friction.role}",
+                          accessibleName: "${friction.accessibleName}",
+                          effect: "${friction.effect}",
+                        }
+                        """.trimIndent(),
+                    ),
+                )
+            }
+        }
     }
 
     @Test
@@ -636,6 +714,17 @@ class PracticeAssetContractTest {
             }
         }
         error("Unclosed function: $name")
+    }
+
+    private fun functionSection(
+        name: String,
+        nextName: String,
+    ): String {
+        val start = javascript.indexOf("function $name(")
+        val end = javascript.indexOf("function $nextName(", start + 1)
+        assertTrue("Missing function: $name", start >= 0)
+        assertTrue("Missing following function: $nextName", end > start)
+        return javascript.substring(start, end)
     }
 
     private fun compact(value: String): String = value.replace(Regex("""\s+"""), " ").trim()

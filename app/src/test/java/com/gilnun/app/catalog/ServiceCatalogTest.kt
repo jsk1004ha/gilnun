@@ -83,14 +83,31 @@ class ServiceCatalogTest {
     }
 
     @Test
-    fun `each service has one fixed non-progress friction event`() {
+    fun `each checkpoint has one strict non-progress event for visible struggle detection`() {
+        ServiceCatalog.services.forEach { service ->
+            service.steps.forEach { checkpoint ->
+                val frictionEvents = checkpoint.events.filter { it.effect == EventEffect.NON_PROGRESS }
+                val friction = frictionEvents.single()
+
+                assertEquals("button", friction.role)
+                assertEquals(checkpoint.id, friction.expectedCheckpoint)
+            }
+        }
+        assertEquals(
+            15,
+            ServiceCatalog.services
+                .flatMap(ServiceContract::steps)
+                .flatMap(CheckpointContract::events)
+                .count { it.effect == EventEffect.NON_PROGRESS },
+        )
+
         expectedFriction.forEach { expected ->
             val service = ServiceCatalog.require(expected.serviceId)
-            val frictionEvents =
-                service.route
-                    .flatMap(CheckpointContract::events)
-                    .filter { it.effect == EventEffect.NON_PROGRESS }
-            val friction = frictionEvents.single()
+            val friction =
+                service
+                    .requireCheckpoint(expected.checkpoint)
+                    .events
+                    .single { it.effect == EventEffect.NON_PROGRESS }
 
             assertEquals(expected.type, friction.type)
             assertEquals(expected.stableKey, friction.stableKey)
