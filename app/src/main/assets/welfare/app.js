@@ -787,6 +787,8 @@
   let currentCheckpoint = service.steps[0].checkpoint;
   let isComplete = false;
   let highlightedTarget = null;
+  let activeProgressTarget = null;
+  let currentGuidanceGate = null;
   let didAutomaticLayoutUpdate = false;
 
   document.body.classList.toggle("layout-b", activeLayout === "B");
@@ -864,11 +866,31 @@
     return postPayload(payload);
   }
 
-  function clearHighlight() {
+  function clearVisibleHighlight() {
     if (highlightedTarget) {
       highlightedTarget.classList.remove("gilnun-highlight");
     }
     highlightedTarget = null;
+  }
+
+  function clearHighlight() {
+    clearVisibleHighlight();
+    activeProgressTarget = null;
+  }
+
+  function refreshGuidanceHighlight() {
+    const unmet = currentGuidanceGate?.firstUnmet();
+    const target = unmet?.target || activeProgressTarget;
+    if (!target) return;
+
+    clearVisibleHighlight();
+    highlightedTarget = target;
+    highlightedTarget.classList.add("gilnun-highlight");
+    if (unmet) {
+      setStatus(`먼저 ‘${unmet.label}’ 항목부터 확인해 주세요. ${unmet.guidance}`);
+    } else {
+      setStatus("위치가 달라져도 의미를 다시 찾았어요. 이름·역할·다음 상태를 확인한 선택입니다.");
+    }
   }
 
   function applyHighlight(command) {
@@ -894,9 +916,8 @@
       return;
     }
     clearHighlight();
-    highlightedTarget = matches[0];
-    highlightedTarget.classList.add("gilnun-highlight");
-    setStatus("위치가 달라져도 의미를 다시 찾았어요. 이름·역할·다음 상태를 확인한 선택입니다.");
+    activeProgressTarget = matches[0];
+    refreshGuidanceHighlight();
   }
 
   function createElement(tagName, className, text) {
@@ -1088,6 +1109,7 @@
         element: null,
         isSatisfied: () => true,
         reportFirstInvalid: () => {},
+        firstUnmet: () => null,
       };
     }
 
@@ -1182,6 +1204,7 @@
             registerMisstep(step, `${field.label}: ${field.guidance}`);
           }
         }
+        refreshGuidanceHighlight();
         return correct;
       }
 
@@ -1190,6 +1213,9 @@
       validators.push({
         isCorrect,
         focus: focusControl,
+        target: fieldWrap,
+        label: field.label,
+        guidance: field.guidance,
         report: () => {
           validate(false);
           registerMisstep(step, `${field.label}: ${field.guidance}`);
@@ -1200,6 +1226,16 @@
     return {
       element: card,
       isSatisfied: () => validators.every((validator) => validator.isCorrect()),
+      firstUnmet: () => {
+        const invalid = validators.find((validator) => !validator.isCorrect());
+        return invalid
+          ? {
+              target: invalid.target,
+              label: invalid.label,
+              guidance: invalid.guidance,
+            }
+          : null;
+      },
       reportFirstInvalid: () => {
         const invalid = validators.find((validator) => !validator.isCorrect());
         if (!invalid) return;
@@ -1260,6 +1296,9 @@
     const scenario = isCurrent ? createScenarioForm(step) : null;
     if (scenario?.element) {
       section.append(scenario.element);
+    }
+    if (isCurrent) {
+      currentGuidanceGate = scenario;
     }
 
     const choiceBoard = createElement("div", `choice-board ${variant}-choice-board`);
@@ -1373,6 +1412,9 @@
     const scenario = isCurrent ? createScenarioForm(step) : null;
     if (scenario?.element) {
       section.append(scenario.element);
+    }
+    if (isCurrent) {
+      currentGuidanceGate = scenario;
     }
 
     let jurisdiction = null;
@@ -1528,6 +1570,7 @@
 
   function renderCurrent(moveFocus = true) {
     clearHighlight();
+    currentGuidanceGate = null;
     renderInstitutionShell();
     renderProgress();
     if (isComplete) {

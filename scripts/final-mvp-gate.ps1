@@ -43,7 +43,7 @@ $deviceStatus = switch ([string]$deviceEvidence.status) {
 }
 
 $summary = @(
-    '# 길눈 Android APK v0.2.2 검증 요약'
+    '# 길눈 Android APK v0.2.3 검증 요약'
     ''
     "생성 시각: $([DateTimeOffset]::Now.ToString('o'))"
     ''
@@ -54,7 +54,7 @@ $summary = @(
     '- debug APK / Android 테스트 APK / signed release APK 빌드: PASS'
     '- 오프라인·권한·WebView·CSP 정적 경계 검사: PASS'
     '- zipalign 및 apksigner 검증: PASS'
-    '- 패키지/버전: com.gilnun.app · 0.2.2 (4)'
+    '- 패키지/버전: com.gilnun.app · 0.2.3 (5)'
     '- 서명 인증서 SHA-256: 9afeec4a9d95be7c5c24c31dad220cd8531548354e3c852634a2e3e2c49ea991'
     ''
     "## $deviceStatus"

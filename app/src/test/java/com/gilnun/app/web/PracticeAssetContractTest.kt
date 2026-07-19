@@ -557,6 +557,29 @@ class PracticeAssetContractTest {
     }
 
     @Test
+    fun `automatic guidance resolves unmet prerequisite before the checkpoint progress action`() {
+        val highlightBody = functionBody("applyHighlight")
+        val refreshBody = functionBody("refreshGuidanceHighlight")
+        val scenarioBody = functionBody("createScenarioForm")
+
+        assertContains(highlightBody, "refreshGuidanceHighlight()")
+        assertContains(refreshBody, "currentGuidanceGate?.firstUnmet()")
+        assertContains(refreshBody, "activeProgressTarget")
+        assertTrue(
+            "An unmet prerequisite must be selected before the final PatchV1 progress target",
+            refreshBody.indexOf("currentGuidanceGate?.firstUnmet()") <
+                refreshBody.indexOf("activeProgressTarget"),
+        )
+        assertContains(scenarioBody, "firstUnmet:")
+        assertContains(scenarioBody, "refreshGuidanceHighlight()")
+        assertFalse(
+            "Guidance may highlight prerequisite controls but must never activate them",
+            Regex("""(?i)\.(click|dispatchEvent)\s*\(""").containsMatchIn(refreshBody),
+        )
+        assertContains(css, ".scenario-field.gilnun-highlight")
+    }
+
+    @Test
     fun `current-step misselections send their catalog non-progress event to Android`() {
         val registerBody = functionBody("registerMisstep")
 

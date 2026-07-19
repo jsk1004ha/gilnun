@@ -937,6 +937,11 @@ fieldset.scenario-field {
   box-shadow: 0 0 0 10px rgba(20, 125, 132, 0.25);
 }
 
+.scenario-field.gilnun-highlight {
+  border-color: var(--teal);
+  background: #fff9dc;
+}
+
 .practice-status {
   min-height: 56px;
   margin: 0;
