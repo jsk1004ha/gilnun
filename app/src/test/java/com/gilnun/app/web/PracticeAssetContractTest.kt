@@ -580,6 +580,24 @@ class PracticeAssetContractTest {
     }
 
     @Test
+    fun `dropdown guidance names the exact expected option without selecting it`() {
+        val refreshBody = functionBody("refreshGuidanceHighlight")
+        val hintBody = functionBody("showChoiceHint")
+        val scenarioBody = functionBody("createScenarioForm")
+
+        assertContains(refreshBody, "showChoiceHint(")
+        assertContains(scenarioBody, "expected: invalid.expected")
+        assertContains(hintBody, "선택할 항목")
+        assertContains(hintBody, "을 선택하세요")
+        assertFalse(
+            "Dropdown guidance must explain but never choose an option",
+            Regex("""(?i)\.(click|dispatchEvent)\s*\(|\.selected\s*=|\.value\s*=""")
+                .containsMatchIn(hintBody),
+        )
+        assertContains(css, ".gilnun-choice-hint")
+    }
+
+    @Test
     fun `current-step misselections send their catalog non-progress event to Android`() {
         val registerBody = functionBody("registerMisstep")
 

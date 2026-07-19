@@ -942,6 +942,34 @@ fieldset.scenario-field {
   background: #fff9dc;
 }
 
+.gilnun-choice-hint {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 3px solid var(--teal);
+  border-left: 10px solid var(--yellow);
+  border-radius: 12px;
+  background: #fff9dc;
+  color: var(--navy);
+  font-size: 20px;
+  line-height: 1.55;
+}
+
+.gilnun-choice-hint p {
+  margin: 4px 0 0;
+}
+
+.gilnun-choice-hint__title,
+.gilnun-choice-hint__choice {
+  display: block;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.gilnun-choice-hint__reason {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
 .practice-status {
   min-height: 56px;
   margin: 0;

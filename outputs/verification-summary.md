@@ -1,6 +1,6 @@
-# 길눈 Android APK v0.2.3 검증 요약
+# 길눈 Android APK v0.2.4 검증 요약
 
-생성 시각: 2026-07-19T09:53:43.1504631+09:00
+생성 시각: 2026-07-19T10:02:44.5076615+09:00
 
 ## AUTOMATED PASS
 
@@ -9,7 +9,7 @@
 - debug APK / Android 테스트 APK / signed release APK 빌드: PASS
 - 오프라인·권한·WebView·CSP 정적 경계 검사: PASS
 - zipalign 및 apksigner 검증: PASS
-- 패키지/버전: com.gilnun.app · 0.2.3 (5)
+- 패키지/버전: com.gilnun.app · 0.2.4 (6)
 - 서명 인증서 SHA-256: 9afeec4a9d95be7c5c24c31dad220cd8531548354e3c852634a2e3e2c49ea991
 
 ## DEVICE_SKIPPED — connected tests were explicitly skipped; no device PASS is claimed
@@ -24,5 +24,5 @@
 
 기기가 연결되기 전에는 위 항목을 PASS로 표시하지 않습니다.
 
-APK SHA-256: 552e104b48f0201af81527dd62504b790d5fff0ee91348f5a70adb74c33024b9
+APK SHA-256: fc16b026ce246242d44cd79bae178f7907bf38b30d53ffbda2bac3f9adfb04ee
 APK: outputs/gilnun-mvp.apk

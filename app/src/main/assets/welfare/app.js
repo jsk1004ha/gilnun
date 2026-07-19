@@ -787,7 +787,9 @@
   let currentCheckpoint = service.steps[0].checkpoint;
   let isComplete = false;
   let highlightedTarget = null;
+  let guidanceChoiceHint = null;
   let activeProgressTarget = null;
+  let activeProgressLabel = null;
   let currentGuidanceGate = null;
   let didAutomaticLayoutUpdate = false;
 
@@ -870,12 +872,36 @@
     if (highlightedTarget) {
       highlightedTarget.classList.remove("gilnun-highlight");
     }
+    if (guidanceChoiceHint) {
+      guidanceChoiceHint.remove();
+    }
     highlightedTarget = null;
+    guidanceChoiceHint = null;
   }
 
   function clearHighlight() {
     clearVisibleHighlight();
     activeProgressTarget = null;
+    activeProgressLabel = null;
+  }
+
+  function showChoiceHint(anchor, expected, reason) {
+    if (!anchor || !expected) return;
+    const hint = createElement("aside", "gilnun-choice-hint");
+    hint.append(
+      createElement("strong", "gilnun-choice-hint__title", "길눈이 찾은 선택"),
+      createElement("p", "gilnun-choice-hint__choice", `선택할 항목 · ${expected}`),
+      createElement("p", "gilnun-choice-hint__instruction", `목록을 열어 ‘${expected}’을 선택하세요.`),
+    );
+    if (reason) {
+      hint.append(createElement("p", "gilnun-choice-hint__reason", `이유 · ${reason}`));
+    }
+    if (anchor.classList.contains("scenario-field")) {
+      anchor.insertBefore(hint, anchor.firstChild);
+    } else if (anchor.parentElement) {
+      anchor.parentElement.insertBefore(hint, anchor);
+    }
+    guidanceChoiceHint = hint;
   }
 
   function refreshGuidanceHighlight() {
@@ -886,6 +912,15 @@
     clearVisibleHighlight();
     highlightedTarget = target;
     highlightedTarget.classList.add("gilnun-highlight");
+    const isDropdown =
+      unmet?.controlType === "select" || activeProgressTarget?.tagName === "SELECT";
+    if (isDropdown) {
+      showChoiceHint(
+        target,
+        unmet?.expected || activeProgressLabel,
+        unmet?.guidance || "현재 연습 상황과 맞는 항목이에요.",
+      );
+    }
     if (unmet) {
       setStatus(`먼저 ‘${unmet.label}’ 항목부터 확인해 주세요. ${unmet.guidance}`);
     } else {
@@ -917,6 +952,7 @@
     }
     clearHighlight();
     activeProgressTarget = matches[0];
+    activeProgressLabel = command.accessibleName;
     refreshGuidanceHighlight();
   }
 
@@ -1216,6 +1252,8 @@
         target: fieldWrap,
         label: field.label,
         guidance: field.guidance,
+        expected: field.expected === true ? field.label : field.expected,
+        controlType: field.type,
         report: () => {
           validate(false);
           registerMisstep(step, `${field.label}: ${field.guidance}`);
@@ -1233,6 +1271,8 @@
               target: invalid.target,
               label: invalid.label,
               guidance: invalid.guidance,
+              expected: invalid.expected,
+              controlType: invalid.controlType,
             }
           : null;
       },

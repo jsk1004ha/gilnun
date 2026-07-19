@@ -190,8 +190,8 @@ if ($apkanalyzerExitCode -ne 0) {
 }
 $manifest = $manifestLines | Out-String
 Assert-Contains -Text $manifest -Expected 'package="com.gilnun.app"' -Description 'application package'
-Assert-Contains -Text $manifest -Expected 'android:versionCode="5"' -Description 'version code'
-Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.3"' -Description 'version name'
+Assert-Contains -Text $manifest -Expected 'android:versionCode="6"' -Description 'version code'
+Assert-Contains -Text $manifest -Expected 'android:versionName="0.2.4"' -Description 'version name'
 if ($manifest -match 'android:debuggable="true"') { throw 'Release APK is debuggable.' }
 foreach ($permission in @(
     'android.permission.INTERNET',
